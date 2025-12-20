@@ -10,6 +10,7 @@ on:
       tag:
         description: '要构建的标签（如果有）'
         required: false
+        default: 'fantasy-latest'
 
 jobs:
   build:
@@ -29,7 +30,7 @@ jobs:
         ref: ${{ github.event.inputs.branch || 'develop' }}
         token: ${{ secrets.REPO_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
         path: ./fantasy-bv
-        fetch-depth: 0  # 获取完整历史记录
+        fetch-depth: 0
         
     - name: Set up JDK 21 (Latest LTS)
       uses: actions/setup-java@main
@@ -38,26 +39,87 @@ jobs:
         distribution: 'temurin'
         cache: 'gradle'
         
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@main
-      with:
-        packages: |
-          platforms;android-34
-          build-tools;34.0.0
-          platform-tools
-          cmdline-tools;latest
-          
-    - name: Configure Android SDK
+    - name: Setup Android SDK (修正版)
       run: |
-        # 创建必要的目录
+        echo "设置Android SDK环境..."
+        
+        # 设置Android SDK根目录
+        ANDROID_HOME="/usr/local/lib/android/sdk"
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+        
+        # 确保目录存在
+        sudo mkdir -p $ANDROID_HOME
+        sudo chmod -R 777 $ANDROID_HOME
+        
+        # 下载命令行工具
+        echo "下载Android命令行工具..."
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-10406996_latest.zip -O cmdline-tools.zip
+        
+        # 解压到正确位置
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+        
+        # 清理
+        rm -f cmdline-tools.zip
+        
+        # 添加到PATH
+        echo "$ANDROID_HOME/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+        echo "$ANDROID_HOME/emulator" >> $GITHUB_PATH
+        
+        echo "Android SDK命令行工具安装完成"
+        
+    - name: Install Android packages
+      run: |
+        echo "安装Android SDK组件..."
+        
+        # 更新环境变量
+        export ANDROID_HOME="/usr/local/lib/android/sdk"
+        export ANDROID_SDK_ROOT="$ANDROID_HOME"
+        
+        # 接受许可证
+        yes | sdkmanager --licenses
+        
+        # 安装必要的组件（逐个安装，避免格式错误）
+        echo "安装platform-tools..."
+        sdkmanager "platform-tools"
+        
+        echo "安装platforms;android-34..."
+        sdkmanager "platforms;android-34"
+        
+        echo "安装build-tools;34.0.0..."
+        sdkmanager "build-tools;34.0.0"
+        
+        echo "安装必要的额外工具..."
+        sdkmanager "cmdline-tools;latest"
+        sdkmanager "patcher;v4"
+        
+        # 列出已安装的包
+        echo "已安装的Android SDK包:"
+        sdkmanager --list | grep -E "installed|platform|build-tools"
+        
+        echo "Android SDK组件安装完成"
+        
+    - name: Configure Android environment
+      run: |
+        echo "配置Android环境..."
+        
+        # 创建必要的目录和文件
         mkdir -p ~/.android
         touch ~/.android/repositories.cfg
         
-        # 接受所有Android SDK许可证
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses 2>/dev/null || true
-        
         # 验证Android SDK安装
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | head -20
+        echo "Android SDK版本:"
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --version
+        
+        echo "Android SDK路径: $ANDROID_SDK_ROOT"
+        echo "平台工具版本:"
+        $ANDROID_SDK_ROOT/platform-tools/adb version
+        
+        echo "环境配置完成"
         
     - name: Verify project structure
       run: |
@@ -170,6 +232,9 @@ jobs:
         # 进入项目目录
         cd fantasy-bv
         
+        # 设置Java内存选项（可选，如果需要）
+        export GRADLE_OPTS="-Xmx4g -Xms1g -XX:MaxMetaspaceSize=1g"
+        
         # 清理并构建
         ./gradlew clean assembleRelease --no-daemon --stacktrace
         
@@ -224,7 +289,7 @@ jobs:
         
     - name: Create GitHub Release (如果指定了标签)
       if: github.event.inputs.tag != ''
-      uses: softprops/action-gh-release@master
+      uses: softprops/action-gh-release@main
       with:
         tag_name: ${{ github.event.inputs.tag }}
         name: Fantasytyx BV ${{ github.event.inputs.tag }}
@@ -241,17 +306,10 @@ jobs:
         prerelease: false
         files: artifacts/*
         
-    - name: Notify build completion (可选)
+    - name: Notify build completion
       if: success()
       run: |
         echo "🎉 Fantasytyx BV 构建成功完成!"
         echo "构建产物已上传到GitHub Artifacts"
         echo "工作流运行ID: ${{ github.run_id }}"
         echo "查看Artifacts: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-        
-    - name: Notify build failure (可选)
-      if: failure()
-      run: |
-        echo "❌ Fantasytyx BV 构建失败!"
-        echo "请检查构建日志以获取详细信息"
-        echo "工作流运行ID: ${{ github.run_id }}"
