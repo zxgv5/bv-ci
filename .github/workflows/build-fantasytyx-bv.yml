@@ -289,7 +289,7 @@ jobs:
         
     - name: Create GitHub Release (如果指定了标签)
       if: github.event.inputs.tag != ''
-      uses: softprops/action-gh-release@main
+      uses: softprops/action-gh-release@master
       with:
         tag_name: ${{ github.event.inputs.tag }}
         name: Fantasytyx BV ${{ github.event.inputs.tag }}
