@@ -104,18 +104,18 @@ jobs:
         
         echo "检查Gradle包装器:"
         if [ -f fantasy-bv/gradlew ]; then
-          echo "✅ Gradle包装器存在"
+          echo "Gradle包装器存在"
           ls -la fantasy-bv/gradlew*
         else
-          echo "❌ Gradle包装器不存在"
+          echo "Gradle包装器不存在"
           exit 1
         fi
         
         echo "检查项目配置:"
         if [ -f fantasy-bv/settings.gradle.kts ] || [ -f fantasy-bv/settings.gradle ]; then
-          echo "✅ Gradle设置文件存在"
+          echo "Gradle设置文件存在"
         else
-          echo "❌ Gradle设置文件不存在"
+          echo "Gradle设置文件不存在"
           exit 1
         fi
         
@@ -137,7 +137,7 @@ jobs:
         
         # 检查是否已有keystore文件
         if [ -f keystore.jks ]; then
-          echo "⚠️  keystore.jks已存在，跳过生成"
+          echo "keystore.jks已存在，跳过生成"
         else
           echo "正在生成新的keystore.jks文件..."
           
@@ -161,7 +161,7 @@ jobs:
             -dname "CN=Fantasytyx, OU=Android, O=Fantasytyx, L=Unknown, ST=Unknown, C=CN" \
             -noprompt
           
-          echo "✅ keystore.jks生成成功"
+          echo "keystore.jks生成成功"
           ls -la keystore.jks
         fi
         
@@ -186,7 +186,7 @@ jobs:
         keystore.alias_pwd=$KEY_ALIAS_PASSWORD
         EOF
         
-        echo "✅ signing.properties创建成功"
+        echo "signing.properties创建成功"
         echo "文件内容（密码已隐藏）:"
         sed 's/=.*/=***/g' signing.properties
         
@@ -214,7 +214,7 @@ jobs:
         # 清理并构建
         ./gradlew clean assembleRelease --no-daemon --stacktrace
         
-        echo "✅ 构建完成"
+        echo "构建完成"
         
         # 显示构建结果
         echo "构建输出文件:"
