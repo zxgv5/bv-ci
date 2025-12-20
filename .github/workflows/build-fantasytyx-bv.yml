@@ -1,158 +1,135 @@
 name: build-fantasytyx-bv
 
 on:
-  # 手动触发
+  push:
   workflow_dispatch:
+    inputs:
+      buildType:
+        description: 'Build type'
+        required: true
+        default: 'release'
+        type: choice
+        options:
+        - release
+        - debug
+      cleanBuild:
+        description: 'Clean build'
+        required: true
+        default: 'true'
+        type: boolean
 
 env:
-  SOURCE_REPO: "xqqv5/fantasy-bv"
-  SOURCE_BRANCH: "develop"
+  ANDROID_COMPILE_SDK: "34"
+  ANDROID_BUILD_TOOLS: "34.0.0"
+  ANDROID_MIN_SDK: "21"
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout CI repository
+    - name: Checkout repository
       uses: actions/checkout@main
       with:
-        path: ci-repo
-
-    - name: Clone source code
-      run: |
-        git clone --depth 1 --branch $SOURCE_BRANCH \
-          https://github.com/$SOURCE_REPO.git source-code
-        cd source-code
-        echo "Latest commit: $(git log -1 --oneline)"
-        echo "Commit hash: $(git rev-parse HEAD)"
-
-    - name: Setup JDK 17
+        fetch-depth: 0
+        
+    - name: Set up JDK
       uses: actions/setup-java@main
       with:
-        java-version: '17'
+        java-version: '21'
         distribution: 'temurin'
-
+        cache: 'gradle'
+        
     - name: Setup Android SDK
       uses: android-actions/setup-android@main
-
-    - name: Restore keystore from secrets
-      env:
-        KEYSTORE_BASE64: ${{ secrets.BV_KEYSTORE_BASE64 }}
-        KEYSTORE_PWD: ${{ secrets.BV_KEYSTORE_PWD }}
-        KEYSTORE_ALIAS: ${{ secrets.BV_KEYSTORE_ALIAS }}
-        KEYSTORE_ALIAS_PWD: ${{ secrets.BV_KEYSTORE_ALIAS_PWD }}
-      run: |
-        cd source-code
-        # 解码 Base64 格式的 keystore 文件
-        echo "$KEYSTORE_BASE64" | base64 --decode > keystore.jks
-        
-        # 创建 signing.properties 文件
-        cat > signing.properties << EOF
-        keystore.path=./keystore.jks
-        keystore.pwd=$KEYSTORE_PWD
-        keystore.alias=$KEYSTORE_ALIAS
-        keystore.alias_pwd=$KEYSTORE_ALIAS_PWD
-        EOF
-        
-        # 验证文件创建成功
-        ls -la keystore.jks
-        echo "Signing properties:"
-        cat signing.properties
-
-    - name: Setup Gradle
-      run: |
-        cd source-code
-        chmod +x gradlew
-
+      
     - name: Cache Gradle dependencies
       uses: actions/cache@main
       with:
         path: |
           ~/.gradle/caches
           ~/.gradle/wrapper
-        key: ${{ runner.os }}-gradle-${{ hashFiles('source-code/**/*.gradle*', 'source-code/**/gradle-wrapper.properties') }}
+        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
         restore-keys: |
           ${{ runner.os }}-gradle-
-
-    - name: Build Release APK
+          
+    - name: Setup Android licenses
       run: |
-        cd source-code
-        ./gradlew clean assembleRelease --no-daemon
-      env:
-        ORG_GRADLE_PROJECT_signingProperties: signing.properties
-
-    - name: Generate build report
-      id: report
-      run: |
-        cd source-code
-        echo "=== Build Report ==="
-        echo "Build Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-        echo "Source Repo: $SOURCE_REPO"
-        echo "Source Branch: $SOURCE_BRANCH"
-        echo "Commit: $(git rev-parse HEAD)"
-        echo ""
-        echo "APK Files:"
-        apk_files=$(find app/build/outputs/apk -name "*.apk" -type f)
-        echo "$apk_files"
+        mkdir -p ~/.android
+        touch ~/.android/repositories.cfg
         
-        # 计算文件大小
-        for file in $apk_files; do
-          size=$(du -h "$file" | cut -f1)
-          filename=$(basename "$file")
-          echo "apk_size_${filename}=$size" >> $GITHUB_OUTPUT
-        done
+        # 接受所有Android SDK许可
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
         
-        # 获取版本信息
-        if [ -f "app/build.gradle" ]; then
-          version_name=$(grep -o "versionName\s\+\"[^\"]\+\"" app/build.gradle | head -1 | cut -d'"' -f2)
-          version_code=$(grep -o "versionCode\s\+[0-9]\+" app/build.gradle | head -1 | awk '{print $2}')
-          echo "version_name=$version_name" >> $GITHUB_OUTPUT
-          echo "version_code=$version_code" >> $GITHUB_OUTPUT
-        fi
-
-    - name: Upload APK artifacts
-      uses: actions/upload-artifact@main
-      with:
-        name: bv-app-release-${{ steps.report.outputs.version_name }}
-        path: source-code/app/build/outputs/apk/**/*.apk
-        retention-days: 30
-
-    - name: Upload build logs
-      if: always()
-      uses: actions/upload-artifact@main
-      with:
-        name: build-logs
-        path: |
-          source-code/app/build/outputs/logs/
-          source-code/app/build/reports/
-        retention-days: 7
-
-    - name: Notify build result (Optional)
-      if: always()
+        # 安装所需的构建工具
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "platforms;android-$ANDROID_COMPILE_SDK" "build-tools;$ANDROID_BUILD_TOOLS"
+        
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+      
+    - name: Validate Gradle wrapper
+      uses: gradle/wrapper-validation-action@main
+      
+    - name: Generate keystore (if secrets exist)
+      if: ${{ secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' }}
       run: |
-        if [ "${{ job.status }}" = "success" ]; then
-          echo "✅ Build successful!"
-          echo "📱 Version: ${{ steps.report.outputs.version_name }} (${{ steps.report.outputs.version_code }})"
-          echo "📦 APK Size: ${{ steps.report.outputs.apk_size_app-release.apk }}"
+        echo "Generating keystore..."
+        keytool -genkey -v \
+          -keystore keystore.jks \
+          -alias "${{ secrets.KEY_ALIAS }}" \
+          -keyalg RSA \
+          -keysize 2048 \
+          -validity 10000 \
+          -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+          -keypass "${{ secrets.KEY_ALIAS_PASSWORD }}" \
+          -dname "CN=Android, OU=Android, O=Unknown, L=Unknown, S=Unknown, C=Unknown" \
+          -noprompt
+          
+    - name: Create signing.properties (if secrets exist)
+      if: ${{ secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' }}
+      run: |
+        echo "Creating signing.properties..."
+        cat > signing.properties << EOF
+        keystore.path=./keystore.jks
+        keystore.pwd=${{ secrets.KEYSTORE_PASSWORD }}
+        keystore.alias=${{ secrets.KEY_ALIAS }}
+        keystore.alias_pwd=${{ secrets.KEY_ALIAS_PASSWORD }}
+        EOF
+        echo "signing.properties created"
+        # 验证文件内容（不显示密码）
+        echo "File content (with passwords masked):"
+        sed 's/=.*/=***/g' signing.properties
+        
+    - name: Build with Gradle
+      run: |
+        if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+          if [ "${{ github.event.inputs.cleanBuild }}" == "true" ]; then
+            ./gradlew clean
+          fi
+          ./gradlew assemble${{ github.event.inputs.buildType }}
         else
-          echo "❌ Build failed!"
+          ./gradlew clean assembleRelease
         fi
-
-    - name: Create GitHub Release (Optional)
-      if: success()
-      uses: softprops/action-gh-release@master
+        
+    - name: List APK files
+      run: |
+        find . -name "*.apk" -type f | xargs ls -lh
+        
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@main
       with:
-        files: source-code/app/build/outputs/apk/release/*.apk
-        tag_name: ci-build-${{ github.run_id }}
-        name: "CI Build #${{ github.run_number }}"
-        body: |
-          **BV Android App - CI Build**
-          
-          - 📅 Build Date: ${{ steps.report.outputs.date }}
-          - 📱 Version: ${{ steps.report.outputs.version_name }} (${{ steps.report.outputs.version_code }})
-          - 📦 APK Size: ${{ steps.report.outputs.apk_size_app-release.apk }}
-          - 🔗 Source Commit: https://github.com/${{ env.SOURCE_REPO }}/commit/$(cd source-code && git rev-parse HEAD)
-          
-          This is an automated build from the CI repository.
-        draft: false
-        prerelease: true
+        name: fantasytyx-bv-${{ github.run_number }}
+        path: |
+          **/build/outputs/apk/release/*.apk
+          **/build/outputs/apk/debug/*.apk
+        if-no-files-found: error
+        retention-days: 30
+        
+    - name: Create GitHub Release (on tag)
+      if: startsWith(github.ref, 'refs/tags/v')
+      uses: softprops/action-gh-release@main
+      with:
+        files: |
+          **/build/outputs/apk/release/*.apk
+          **/build/outputs/bundle/release/*.aab
+        generate_release_notes: true
