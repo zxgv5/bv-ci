@@ -18,6 +18,7 @@ on:
         type: boolean
 
 env:
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   ANDROID_COMPILE_SDK: "34"
   ANDROID_BUILD_TOOLS: "34.0.0"
   ANDROID_MIN_SDK: "21"
@@ -28,23 +29,22 @@ jobs:
     
     steps:
     - name: Checkout repository
-      # uses: actions/checkout@main
-      uses: actions/checkout@v6.0.1
+      uses: actions/checkout@main
       with:
         fetch-depth: 0
         
     - name: Set up JDK
-      uses: actions/setup-java@v5.1.0
+      uses: actions/setup-java@main
       with:
         java-version: '21'
         distribution: 'temurin'
         cache: 'gradle'
         
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3.2.2
+      uses: android-actions/setup-android@main
       
     - name: Cache Gradle dependencies
-      uses: actions/cache@v5.0.1
+      uses: actions/cache@main
       with:
         path: |
           ~/.gradle/caches
@@ -68,7 +68,7 @@ jobs:
       run: chmod +x ./gradlew
       
     - name: Validate Gradle wrapper
-      uses: gradle/wrapper-validation-action@v3.5.0
+      uses: gradle/wrapper-validation-action@main
       
     - name: Generate keystore (if secrets exist)
       if: ${{ secrets.KEYSTORE_PASSWORD != '' && secrets.KEY_ALIAS != '' }}
@@ -116,7 +116,7 @@ jobs:
         find . -name "*.apk" -type f | xargs ls -lh
         
     - name: Upload APK artifact
-      uses: actions/upload-artifact@v6.0.0
+      uses: actions/upload-artifact@main
       with:
         name: fantasytyx-bv-${{ github.run_number }}
         path: |
@@ -127,7 +127,7 @@ jobs:
         
     - name: Create GitHub Release (on tag)
       if: startsWith(github.ref, 'refs/tags/v')
-      uses: softprops/action-gh-release@v2.5.0
+      uses: softprops/action-gh-release@master
       with:
         files: |
           **/build/outputs/apk/release/*.apk
