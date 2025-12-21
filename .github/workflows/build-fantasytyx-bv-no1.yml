@@ -59,6 +59,21 @@ jobs:
         sdkmanager "build-tools;$ANDROID_BUILD_TOOLS"
         sdkmanager "cmdline-tools;latest"
         
+    - name: Find and fix AppConfiguration
+      run: |
+        cd bv-source
+        
+        echo "=== Searching for AppConfiguration class ==="
+        
+        # 在buildSrc中查找AppConfiguration
+        find buildSrc -name "*.kt" -o -name "*.kts" | xargs grep -l "AppConfiguration" 2>/dev/null || true
+        
+        # 查找所有Kotlin文件中的AppConfiguration
+        find . -name "*.kt" -type f -exec grep -l "object AppConfiguration\|class AppConfiguration\|AppConfiguration\." {} \; | head -20
+        
+        echo "=== Checking buildSrc directory structure ==="
+        find buildSrc -type f -name "*.kt" | head -20
+        
     - name: Create keystore and signing properties
       run: |
         cd bv-source
