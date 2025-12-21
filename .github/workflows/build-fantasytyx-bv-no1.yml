@@ -1,0 +1,119 @@
+﻿name: build-fantasytyx-bv-no1
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+  workflow_dispatch:  # 允许手动触发构建
+
+env:
+  JDK_VERSION: '11'  # 根据项目需求调整Java版本
+  ANDROID_COMPILE_SDK: '33'  # 根据项目配置调整
+  ANDROID_BUILD_TOOLS: '33.0.2'  # 根据项目配置调整
+  ANDROID_SDK_TOOLS: '9477386'  # 最新版本号，可调整
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@main
+      with:
+        repository: xqqv5/fantasy-bv
+        ref: develop
+        path: bv-source  # 将代码克隆到指定目录
+
+    - name: Set up JDK ${{ env.JDK_VERSION }}
+      uses: actions/setup-java@main
+      with:
+        java-version: ${{ env.JDK_VERSION }}
+        distribution: 'temurin'  # 或者 'zulu', 'corretto' 等
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@main
+      # 或者使用以下手动设置Android SDK的方式
+      
+    - name: Setup Android SDK (Manual)
+      run: |
+        # 下载并解压Android SDK命令行工具
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-${ANDROID_SDK_TOOLS}_latest.zip -O cmdline-tools.zip
+        mkdir -p $HOME/android-sdk/cmdline-tools
+        unzip -q cmdline-tools.zip -d $HOME/android-sdk/cmdline-tools
+        mv $HOME/android-sdk/cmdline-tools/cmdline-tools $HOME/android-sdk/cmdline-tools/latest
+        
+        # 设置环境变量
+        echo "ANDROID_SDK_ROOT=$HOME/android-sdk" >> $GITHUB_ENV
+        echo "$HOME/android-sdk/cmdline-tools/latest/bin" >> $GITHUB_PATH
+        echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
+        echo "$HOME/android-sdk/build-tools/$ANDROID_BUILD_TOOLS" >> $GITHUB_PATH
+        
+        # 接受SDK许可证
+        yes | sdkmanager --licenses || true
+
+    - name: Install required Android SDK components
+      run: |
+        sdkmanager "platforms;android-$ANDROID_COMPILE_SDK"
+        sdkmanager "platform-tools"
+        sdkmanager "build-tools;$ANDROID_BUILD_TOOLS"
+        sdkmanager "cmdline-tools;latest"
+        
+    - name: Create keystore and signing properties
+      run: |
+        cd bv-source
+        
+        # 创建keystore文件 - 使用secrets存储密码和别名信息
+        keytool -genkey -v -keystore keystore.jks \
+          -alias ${{ secrets.KEYSTORE_ALIAS }} \
+          -keyalg RSA -keysize 4096 -validity 10000 \
+          -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
+          -keypass ${{ secrets.KEY_PASSWORD }} \
+          -dname "CN=, OU=, O=, L=, S=, C="
+        
+        # 创建signing.properties文件
+        cat > signing.properties << EOF
+        keystore.path=./keystore.jks
+        keystore.pwd=${{ secrets.KEYSTORE_PASSWORD }}
+        keystore.alias=${{ secrets.KEYSTORE_ALIAS }}
+        keystore.alias_pwd=${{ secrets.KEY_PASSWORD }}
+        EOF
+        
+        # 显示创建的文件（仅用于调试）
+        ls -la keystore.jks
+        ls -la signing.properties
+
+    - name: Grant execute permission for gradlew
+      run: |
+        cd bv-source
+        chmod +x gradlew
+
+    - name: Build with Gradle
+      run: |
+        cd bv-source
+        
+        # 可选：查看当前目录结构
+        ls -la
+        
+        # 执行构建
+        ./gradlew clean assembleRelease
+        
+        # 检查生成的APK文件
+        find . -name "*.apk" -type f
+
+    - name: Upload APK artifact
+      uses: actions/upload-artifact@main
+      with:
+        name: bv-app-release
+        path: bv-source/app/build/outputs/apk/release/*.apk  # 根据实际项目结构调整路径
+        retention-days: 7  # 保留7天
+
+    - name: Upload build logs
+      if: always()  # 即使构建失败也上传日志
+      uses: actions/upload-artifact@main
+      with:
+        name: build-logs
+        path: |
+          bv-source/app/build/outputs/
+          bv-source/build/reports/
+        retention-days: 7
