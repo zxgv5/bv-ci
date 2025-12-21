@@ -1,0 +1,243 @@
+name: build-fantasytyx-bv-no2
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+  workflow_dispatch:
+
+env:
+  JDK_VERSION: '17'
+  ANDROID_COMPILE_SDK: '36'
+  ANDROID_BUILD_TOOLS: '36.0.0'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout source code
+      uses: actions/checkout@v4
+      with:
+        repository: fantasytyx/bv
+        ref: develop
+        path: bv-source
+
+    - name: Set up JDK ${{ env.JDK_VERSION }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ env.JDK_VERSION }}
+        distribution: 'temurin'
+
+    - name: Setup Android SDK (统一路径)
+      run: |
+        # 清理可能冲突的环境变量
+        echo "=== 清理Android SDK环境 ==="
+        
+        # 设置统一的SDK路径
+        SDK_ROOT="/usr/local/lib/android/sdk"
+        
+        # 创建目录
+        sudo mkdir -p $SDK_ROOT
+        sudo chmod -R 777 $SDK_ROOT
+        
+        # 设置环境变量
+        echo "ANDROID_HOME=$SDK_ROOT" >> $GITHUB_ENV
+        echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> $GITHUB_ENV
+        echo "PATH=$SDK_ROOT/cmdline-tools/latest/bin:$SDK_ROOT/platform-tools:$SDK_ROOT/emulator:$PATH" >> $GITHUB_ENV
+        
+        echo "SDK路径已设置为: $SDK_ROOT"
+
+    - name: Install Android SDK components
+      run: |
+        echo "=== 安装Android SDK组件 ==="
+        
+        # 更新包列表
+        sudo apt-get update
+        
+        # 安装必要的包
+        sudo apt-get install -y wget unzip zip
+        
+        # 下载命令行工具
+        SDK_TOOLS_VERSION="9477386"  # 最新版本
+        wget -q https://dl.google.com/android/repository/commandlinetools-linux-${SDK_TOOLS_VERSION}_latest.zip -O cmdline-tools.zip
+        
+        # 解压到SDK目录
+        mkdir -p $ANDROID_HOME/cmdline-tools
+        unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
+        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+        
+        # 接受许可证
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
+        
+        # 安装必要的SDK组件
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
+          "platforms;android-${{ env.ANDROID_COMPILE_SDK }}" \
+          "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" \
+          "platform-tools" \
+          "tools" \
+          "patcher;v4"
+        
+        echo "=== 安装完成 ==="
+        echo "Android SDK位置: $ANDROID_HOME"
+        ls -la $ANDROID_HOME
+
+    - name: Fix versionCode (使用更安全的方法)
+      run: |
+        cd bv-source
+        
+        echo "=== 安全地修复versionCode ==="
+        
+        # 恢复备份文件
+        if [ -f "app/build.gradle.kts.bak" ]; then
+          echo "恢复原始文件..."
+          cp app/build.gradle.kts.bak app/build.gradle.kts
+        fi
+        
+        # 查找AppConfiguration的实际定义位置
+        echo "=== 查找AppConfiguration定义 ==="
+        
+        # 先查看buildSrc目录结构
+        if [ -d "buildSrc" ]; then
+          echo "buildSrc目录内容:"
+          find buildSrc -name "*.kt" -o -name "*.kts" | head -20
+          
+          # 查找包含versionCode的文件
+          find buildSrc -type f \( -name "*.kt" -o -name "*.kts" \) -exec grep -l "versionCode" {} \; 2>/dev/null | while read file; do
+            echo "找到versionCode在: $file"
+            # 显示相关行
+            grep -n -B2 -A2 "versionCode" "$file"
+          done
+        fi
+
+    - name: DEBUG - 查看AppConfiguration内容
+      run: |
+        cd bv-source
+        
+        echo "=== 查看AppConfiguration ==="
+        
+        # 在buildSrc中查找AppConfiguration
+        APP_CONFIG_FILE=$(find buildSrc -name "*.kt" -type f -exec grep -l "object AppConfiguration\|class AppConfiguration" {} \; 2>/dev/null | head -1)
+        
+        if [ -n "$APP_CONFIG_FILE" ]; then
+          echo "找到AppConfiguration文件: $APP_CONFIG_FILE"
+          echo "=== 文件内容 ==="
+          cat "$APP_CONFIG_FILE"
+          
+          # 查找并修复versionCode
+          if grep -q "versionCode\s*=\s*-4" "$APP_CONFIG_FILE"; then
+            echo "=== 修复负的versionCode ==="
+            cp "$APP_CONFIG_FILE" "${APP_CONFIG_FILE}.bak"
+            sed -i 's/versionCode\s*=\s*-4/versionCode = 1/' "$APP_CONFIG_FILE"
+            echo "修复后的versionCode行:"
+            grep "versionCode" "$APP_CONFIG_FILE"
+          fi
+        else
+          echo "未找到AppConfiguration文件，检查其他位置..."
+          # 搜索其他可能的位置
+          find . -name "*.kt" -type f -exec grep -l "AppConfiguration" {} \; 2>/dev/null | grep -v "/build/" | head -10
+        fi
+
+    - name: 创建签名文件
+      run: |
+        cd bv-source
+        
+        echo "=== 创建签名文件 ==="
+        
+        # 检查是否已有签名文件
+        if [ ! -f "keystore.jks" ]; then
+          keytool -genkeypair \
+            -keystore keystore.jks \
+            -alias "${{ secrets.KEYSTORE_ALIAS || 'bv_alias' }}" \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 36500 \
+            -storepass "${{ secrets.KEYSTORE_PASSWORD || 'android' }}" \
+            -keypass "${{ secrets.KEY_PASSWORD || 'android' }}" \
+            -dname "CN=Android Developer, OU=Android, O=Company, L=City, ST=State, C=CN"
+        fi
+        
+        # 创建signing.properties文件
+        cat > signing.properties << EOF
+              keystore.path=./keystore.jks
+              keystore.pwd=${{ secrets.KEYSTORE_PASSWORD || 'android' }}
+              keystore.alias=${{ secrets.KEYSTORE_ALIAS || 'bv_alias' }}
+              keystore.alias_pwd=${{ secrets.KEY_PASSWORD || 'android' }}
+              EOF
+        echo "签名文件准备完成"
+
+    - name: 授予gradlew执行权限
+      run: |
+        cd bv-source
+        chmod +x gradlew
+
+    - name: 清理和验证环境
+      run: |
+        cd bv-source
+        
+        echo "=== 环境验证 ==="
+        echo "ANDROID_HOME: $ANDROID_HOME"
+        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
+        echo "Java版本:"
+        java -version
+        echo "Android SDK版本:"
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | head -20 || true
+        
+        # 清理构建缓存
+        rm -rf .gradle build || true
+
+    - name: 构建项目 (带调试)
+      run: |
+        cd bv-source
+        
+        echo "=== 开始构建 ==="
+        
+        # 先尝试简单的清理
+        ./gradlew clean --no-daemon || true
+        
+        # 查看可用的构建任务
+        echo "=== 可用构建任务 ==="
+        ./gradlew tasks --all | grep -i assemble || true
+        
+        # 尝试构建release版本
+        echo "=== 构建release ==="
+        ./gradlew assembleRelease --no-daemon --stacktrace
+        
+        echo "=== 查找生成的APK ==="
+        find . -name "*.apk" -type f 2>/dev/null | head -10 || true
+
+    - name: 备选构建方案 (如果上述失败)
+      if: failure()
+      run: |
+        cd bv-source
+        
+        echo "=== 尝试备选构建方案 ==="
+        
+        # 尝试构建特定flavor
+        ./gradlew assembleDefaultRelease --no-daemon --stacktrace --info
+        
+        # 或者尝试debug版本
+        if [ $? -ne 0 ]; then
+          echo "=== 尝试构建debug版本 ==="
+          ./gradlew assembleDebug --no-daemon --stacktrace
+        fi
+
+    - name: 上传APK产物
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: bv-app-release
+        path: bv-source/app/build/outputs/apk/
+        if-no-files-found: warn
+        retention-days: 30
+
+    - name: 上传构建日志 (用于调试)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-logs
+        path: |
+          bv-source/build/reports/
+          bv-source/.gradle/
+        retention-days: 7
