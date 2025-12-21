@@ -63,25 +63,40 @@ jobs:
       run: |
         cd bv-source
         
-        # 创建keystore文件 - 使用secrets存储密码和别名信息
-        keytool -genkey -v -keystore keystore.jks \
-          -alias ${{ secrets.KEYSTORE_ALIAS }} \
-          -keyalg RSA -keysize 4096 -validity 10000 \
-          -storepass ${{ secrets.KEYSTORE_PASSWORD }} \
-          -keypass ${{ secrets.KEY_PASSWORD }} \
-          -dname "CN=, OU=, O=, L=, S=, C="
+        # 方法1：使用标准语法（推荐）
+        keytool -genkeypair \
+          -v \
+          -keystore keystore.jks \
+          -alias "${{ secrets.KEYSTORE_ALIAS }}" \
+          -keyalg RSA \
+          -keysize 4096 \
+          -validity 10000 \
+          -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+          -keypass "${{ secrets.KEY_PASSWORD }}" \
+          -dname "CN=Android Developer, OU=Android, O=Company, L=City, ST=State, C=US" \
+          -storetype JKS
+        
+        # 或者方法2：使用旧语法（如果上面失败）
+        # keytool -genkey -v \
+        #   -keystore keystore.jks \
+        #   -alias "${{ secrets.KEYSTORE_ALIAS }}" \
+        #   -keyalg RSA \
+        #   -keysize 4096 \
+        #   -validity 10000 \
+        #   -storepass "${{ secrets.KEYSTORE_PASSWORD }}" \
+        #   -keypass "${{ secrets.KEY_PASSWORD }}" \
+        #   -dname "CN=Android Developer, OU=Android, O=Company, L=City, ST=State, C=US"
         
         # 创建signing.properties文件
         cat > signing.properties << EOF
-        keystore.path=./keystore.jks
-        keystore.pwd=${{ secrets.KEYSTORE_PASSWORD }}
-        keystore.alias=${{ secrets.KEYSTORE_ALIAS }}
-        keystore.alias_pwd=${{ secrets.KEY_PASSWORD }}
-        EOF
+              keystore.path=./keystore.jks
+              keystore.pwd=${{ secrets.KEYSTORE_PASSWORD }}
+              keystore.alias=${{ secrets.KEYSTORE_ALIAS }}
+              keystore.alias_pwd=${{ secrets.KEY_PASSWORD }}
+              EOF
         
-        # 显示创建的文件（仅用于调试）
-        ls -la keystore.jks
-        ls -la signing.properties
+        echo "Created files:"
+        ls -la keystore.jks signing.properties
 
     - name: Grant execute permission for gradlew
       run: |
