@@ -58,20 +58,7 @@ jobs:
         sdkmanager "platform-tools"
         sdkmanager "build-tools;$ANDROID_BUILD_TOOLS"
         sdkmanager "cmdline-tools;latest"
-        
-    - name: Alternative fix - directly override in gradle.properties
-      run: |
-        cd bv-source
-        
-        # 在gradle.properties中添加或修改版本号
-        echo "" >> gradle.properties
-        echo "# GitHub Actions build override" >> gradle.properties
-        echo "appVersionCode=1" >> gradle.properties
-        echo "# End override" >> gradle.properties
-        
-        echo "=== Updated gradle.properties ==="
-        tail -10 gradle.properties
-        
+
     - name: Create keystore and signing properties
       run: |
         cd bv-source
@@ -110,6 +97,47 @@ jobs:
         
         echo "Created files:"
         ls -la keystore.jks signing.properties
+
+- name: Fix versionCode in build.gradle.kts
+  run: |
+    cd bv-source
+    
+    echo "=== Fixing versionCode issue ==="
+    
+    if [ -f "app/build.gradle.kts" ]; then
+      echo "Found app/build.gradle.kts, checking versionCode..."
+      
+      # 备份原文件
+      cp app/build.gradle.kts app/build.gradle.kts.backup
+      
+      # 使用Python进行更精确的替换
+      python3 << 'EOF'
+import re
+
+with open('app/build.gradle.kts', 'r') as f:
+    content = f.read()
+
+# 替换所有可能出现versionCode的地方
+patterns = [
+    r'versionCode\s*=\s*AppConfiguration\.versionCode',
+    r'versionCode\s*=\s*-?\d+'
+]
+
+for pattern in patterns:
+    content = re.sub(pattern, 'versionCode = 1', content)
+
+with open('app/build.gradle.kts', 'w') as f:
+    f.write(new_content)
+
+print("Fixed versionCode in app/build.gradle.kts")
+EOF
+      
+      echo "Modified app/build.gradle.kts:"
+      grep -n "versionCode" app/build.gradle.kts
+    else
+      echo "app/build.gradle.kts not found!"
+      exit 1
+    fi
 
     - name: Grant execute permission for gradlew
       run: |
