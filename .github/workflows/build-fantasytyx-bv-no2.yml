@@ -11,233 +11,322 @@ env:
   JDK_VERSION: '17'
   ANDROID_COMPILE_SDK: '36'
   ANDROID_BUILD_TOOLS: '36.0.0'
+  CMAKE_VERSION: '3.22.1'
+  NINJA_VERSION: '1.11.1'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout source code
-      uses: actions/checkout@v4
+    - name: Checkout source code with submodules
+      uses: actions/checkout@main
       with:
-        repository: fantasytyx/bv
+        repository: xqqv5/fantasy-bv
         ref: develop
         path: bv-source
+        submodules: 'recursive'
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Verify submodules are properly initialized
+      run: |
+        cd bv-source
+        
+        echo "=== 验证子模块状态 ==="
+        git submodule status
+        
+        echo "=== 检查libs目录 ==="
+        if [ -d "libs" ]; then
+          echo "libs目录内容:"
+          ls -la libs/
+          
+          # 检查每个子模块是否有内容
+          for dir in libs/*; do
+            if [ -d "$dir" ]; then
+              echo "=== 检查 $dir ==="
+              ls -la "$dir/" | head -10
+            fi
+          done
+        else
+          echo "警告: libs目录不存在，尝试手动初始化子模块"
+          git submodule init
+          git submodule update --recursive --depth=1
+        fi
 
     - name: Set up JDK ${{ env.JDK_VERSION }}
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@main
       with:
         java-version: ${{ env.JDK_VERSION }}
         distribution: 'temurin'
 
-    - name: Setup Android SDK (统一路径)
-      run: |
-        # 清理可能冲突的环境变量
-        echo "=== 清理Android SDK环境 ==="
-        
-        # 设置统一的SDK路径
-        SDK_ROOT="/usr/local/lib/android/sdk"
-        
-        # 创建目录
-        sudo mkdir -p $SDK_ROOT
-        sudo chmod -R 777 $SDK_ROOT
-        
-        # 设置环境变量
-        echo "ANDROID_HOME=$SDK_ROOT" >> $GITHUB_ENV
-        echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> $GITHUB_ENV
-        echo "PATH=$SDK_ROOT/cmdline-tools/latest/bin:$SDK_ROOT/platform-tools:$SDK_ROOT/emulator:$PATH" >> $GITHUB_ENV
-        
-        echo "SDK路径已设置为: $SDK_ROOT"
+    - name: Install Android SDK and NDK
+      uses: android-actions/setup-android@main
+      with:
+        api-level: ${{ env.ANDROID_COMPILE_SDK }}
+        build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+        ndk: '25.2.9519653'
+        cmake: ${{ env.CMAKE_VERSION }}
+        ndk-version: '25.2.9519653'
 
-    - name: Install Android SDK components
+    - name: Install native build tools
       run: |
-        echo "=== 安装Android SDK组件 ==="
-        
-        # 更新包列表
         sudo apt-get update
+        sudo apt-get install -y \
+          cmake \
+          ninja-build \
+          build-essential \
+          nasm \
+          yasm \
+          pkg-config \
+          libtool \
+          autoconf \
+          automake
         
-        # 安装必要的包
-        sudo apt-get install -y wget unzip zip
-        
-        # 下载命令行工具
-        SDK_TOOLS_VERSION="9477386"  # 最新版本
-        wget -q https://dl.google.com/android/repository/commandlinetools-linux-${SDK_TOOLS_VERSION}_latest.zip -O cmdline-tools.zip
-        
-        # 解压到SDK目录
-        mkdir -p $ANDROID_HOME/cmdline-tools
-        unzip -q cmdline-tools.zip -d $ANDROID_HOME/cmdline-tools
-        mv $ANDROID_HOME/cmdline-tools/cmdline-tools $ANDROID_HOME/cmdline-tools/latest
-        
-        # 接受许可证
-        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
-        
-        # 安装必要的SDK组件
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
-          "platforms;android-${{ env.ANDROID_COMPILE_SDK }}" \
-          "build-tools;${{ env.ANDROID_BUILD_TOOLS }}" \
-          "platform-tools" \
-          "tools" \
-          "patcher;v4"
-        
-        echo "=== 安装完成 ==="
-        echo "Android SDK位置: $ANDROID_HOME"
-        ls -la $ANDROID_HOME
+        echo "=== 验证安装的工具 ==="
+        cmake --version
+        ninja --version
+        gcc --version
+        make --version
 
-    - name: Fix versionCode (使用更安全的方法)
+    - name: Modify AppConfiguration.kt before build
       run: |
         cd bv-source
         
-        echo "=== 安全地修复versionCode ==="
+        echo "=== 修改AppConfiguration.kt中的versionCode计算方式 ==="
         
-        # 恢复备份文件
-        if [ -f "app/build.gradle.kts.bak" ]; then
-          echo "恢复原始文件..."
-          cp app/build.gradle.kts.bak app/build.gradle.kts
-        fi
+        APP_CONFIG_FILE="buildSrc/src/main/kotlin/AppConfiguration.kt"
         
-        # 查找AppConfiguration的实际定义位置
-        echo "=== 查找AppConfiguration定义 ==="
-        
-        # 先查看buildSrc目录结构
-        if [ -d "buildSrc" ]; then
-          echo "buildSrc目录内容:"
-          find buildSrc -name "*.kt" -o -name "*.kts" | head -20
+        if [ -f "$APP_CONFIG_FILE" ]; then
+          echo "找到AppConfiguration.kt文件，准备修改..."
           
-          # 查找包含versionCode的文件
-          find buildSrc -type f \( -name "*.kt" -o -name "*.kts" \) -exec grep -l "versionCode" {} \; 2>/dev/null | while read file; do
-            echo "找到versionCode在: $file"
-            # 显示相关行
-            grep -n -B2 -A2 "versionCode" "$file"
-          done
+          # 备份原文件
+          cp "$APP_CONFIG_FILE" "${APP_CONFIG_FILE}.backup"
+          
+          # 显示原始内容
+          echo "=== 原始versionCode定义 ==="
+          grep -n "versionCode" "$APP_CONFIG_FILE"
+          
+          # 修改版本号计算：从 -5 改为 +1
+          sed -i 's/val versionCode: Int by lazy { "git rev-list --count HEAD".exec().toInt() - 5 }/val versionCode: Int by lazy { "git rev-list --count HEAD".exec().toInt() + 1 }/' "$APP_CONFIG_FILE"
+          
+          # 验证修改
+          echo "=== 修改后的versionCode定义 ==="
+          grep -n "versionCode" "$APP_CONFIG_FILE"
+          
+          # 显示完整的修改内容
+          echo "=== 修改前后的对比 ==="
+          diff -u "${APP_CONFIG_FILE}.backup" "$APP_CONFIG_FILE" | grep -E "^[+-].*versionCode" || true
+        else
+          echo "错误：未找到AppConfiguration.kt文件"
+          find . -name "AppConfiguration.kt" -type f 2>/dev/null
+          exit 1
         fi
 
-    - name: DEBUG - 查看AppConfiguration内容
+    - name: Check and fix ffmpegDecoder build configuration
       run: |
         cd bv-source
         
-        echo "=== 查看AppConfiguration ==="
+        echo "=== 检查并修复ffmpegDecoder配置 ==="
         
-        # 在buildSrc中查找AppConfiguration
-        APP_CONFIG_FILE=$(find buildSrc -name "*.kt" -type f -exec grep -l "object AppConfiguration\|class AppConfiguration" {} \; 2>/dev/null | head -1)
-        
-        if [ -n "$APP_CONFIG_FILE" ]; then
-          echo "找到AppConfiguration文件: $APP_CONFIG_FILE"
-          echo "=== 文件内容 ==="
-          cat "$APP_CONFIG_FILE"
+        if [ -d "libs/ffmpegDecoder" ]; then
+          echo "=== ffmpegDecoder目录结构 ==="
+          ls -la libs/ffmpegDecoder/
           
-          # 查找并修复versionCode
-          if grep -q "versionCode\s*=\s*-4" "$APP_CONFIG_FILE"; then
-            echo "=== 修复负的versionCode ==="
-            cp "$APP_CONFIG_FILE" "${APP_CONFIG_FILE}.bak"
-            sed -i 's/versionCode\s*=\s*-4/versionCode = 1/' "$APP_CONFIG_FILE"
-            echo "修复后的versionCode行:"
-            grep "versionCode" "$APP_CONFIG_FILE"
+          # 检查构建文件
+          if [ -f "libs/ffmpegDecoder/build.gradle.kts" ]; then
+            echo "=== ffmpegDecoder的build.gradle.kts内容 ==="
+            head -100 libs/ffmpegDecoder/build.gradle.kts
+          elif [ -f "libs/ffmpegDecoder/build.gradle" ]; then
+            echo "=== ffmpegDecoder的build.gradle内容 ==="
+            head -100 libs/ffmpegDecoder/build.gradle
+          else
+            echo "警告: ffmpegDecoder没有构建文件"
+            
+            # 检查是否有CMakeLists.txt
+            if [ -f "libs/ffmpegDecoder/CMakeLists.txt" ]; then
+              echo "找到CMakeLists.txt，这是一个CMake项目"
+              cat libs/ffmpegDecoder/CMakeLists.txt | head -50
+            fi
+          fi
+          
+          # 检查是否在settings.gradle.kts中正确包含
+          if grep -q ":libs:ffmpegDecoder" settings.gradle.kts; then
+            echo "ffmpegDecoder已在settings.gradle.kts中包含"
+          else
+            echo "警告: ffmpegDecoder未在settings.gradle.kts中包含"
           fi
         else
-          echo "未找到AppConfiguration文件，检查其他位置..."
-          # 搜索其他可能的位置
-          find . -name "*.kt" -type f -exec grep -l "AppConfiguration" {} \; 2>/dev/null | grep -v "/build/" | head -10
+          echo "错误: ffmpegDecoder目录不存在！"
+          echo "当前libs目录内容:"
+          ls -la libs/ || echo "libs目录不存在"
+          
+          # 尝试手动克隆子模块
+          echo "=== 尝试手动克隆子模块 ==="
+          rm -rf libs
+          git submodule init
+          git submodule update --recursive --depth=1
         fi
 
-    - name: 创建签名文件
+    - name: Check other native modules
+      run: |
+        cd bv-source
+        
+        echo "=== 检查其他原生模块 ==="
+        
+        # 检查所有libs目录下的模块
+        for module in libs/*; do
+          if [ -d "$module" ]; then
+            echo "=== 检查模块: $module ==="
+            
+            # 检查是否有CMakeLists.txt
+            if [ -f "$module/CMakeLists.txt" ]; then
+              echo "包含CMakeLists.txt - 需要CMake构建"
+              # 显示CMake版本要求
+              grep -i "cmake_minimum_required\|project" "$module/CMakeLists.txt" | head -5 || true
+            fi
+            
+            # 检查是否有build.gradle文件
+            if [ -f "$module/build.gradle.kts" ] || [ -f "$module/build.gradle" ]; then
+              echo "包含Gradle构建文件"
+            fi
+            
+            # 检查是否有native代码
+            if find "$module" -name "*.c" -o -name "*.cpp" -o -name "*.h" 2>/dev/null | head -1 | grep -q "."; then
+              echo "包含C/C++源代码"
+            fi
+          fi
+        done
+
+    - name: Create keystore and signing properties
       run: |
         cd bv-source
         
         echo "=== 创建签名文件 ==="
         
-        # 检查是否已有签名文件
-        if [ ! -f "keystore.jks" ]; then
-          keytool -genkeypair \
-            -keystore keystore.jks \
-            -alias "${{ secrets.KEYSTORE_ALIAS || 'bv_alias' }}" \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 36500 \
-            -storepass "${{ secrets.KEYSTORE_PASSWORD || 'android' }}" \
-            -keypass "${{ secrets.KEY_PASSWORD || 'android' }}" \
-            -dname "CN=Android Developer, OU=Android, O=Company, L=City, ST=State, C=CN"
-        fi
+        # 使用默认值或secrets
+        KEYSTORE_ALIAS="${KEYSTORE_ALIAS:-bv_alias}"
+        KEYSTORE_PASSWORD="${KEYSTORE_PASSWORD:-android}"
+        KEY_PASSWORD="${KEY_PASSWORD:-android}"
+        
+        # 创建keystore文件
+        keytool -genkeypair \
+          -keystore keystore.jks \
+          -alias "$KEYSTORE_ALIAS" \
+          -keyalg RSA \
+          -keysize 4096 \
+          -validity 36500 \
+          -storepass "$KEYSTORE_PASSWORD" \
+          -keypass "$KEY_PASSWORD" \
+          -dname "CN=Android Developer, OU=Android, O=Company, L=City, ST=State, C=CN"
         
         # 创建signing.properties文件
         cat > signing.properties << EOF
               keystore.path=./keystore.jks
-              keystore.pwd=${{ secrets.KEYSTORE_PASSWORD || 'android' }}
-              keystore.alias=${{ secrets.KEYSTORE_ALIAS || 'bv_alias' }}
-              keystore.alias_pwd=${{ secrets.KEY_PASSWORD || 'android' }}
+              keystore.pwd=$KEYSTORE_PASSWORD
+              keystore.alias=$KEYSTORE_ALIAS
+              keystore.alias_pwd=$KEY_PASSWORD
               EOF
-        echo "签名文件准备完成"
+        
+        echo "签名文件创建完成"
 
-    - name: 授予gradlew执行权限
+    - name: Grant execute permission for gradlew
       run: |
         cd bv-source
         chmod +x gradlew
 
-    - name: 清理和验证环境
+    - name: Build native modules first
       run: |
         cd bv-source
         
-        echo "=== 环境验证 ==="
-        echo "ANDROID_HOME: $ANDROID_HOME"
-        echo "ANDROID_SDK_ROOT: $ANDROID_SDK_ROOT"
-        echo "Java版本:"
-        java -version
-        echo "Android SDK版本:"
-        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list | head -20 || true
+        echo "=== 先构建原生模块 ==="
         
         # 清理构建缓存
         rm -rf .gradle build || true
+        
+        # 尝试构建ffmpegDecoder模块
+        echo "=== 尝试构建ffmpegDecoder ==="
+        ./gradlew :libs:ffmpegDecoder:assemble --no-daemon --stacktrace || echo "构建ffmpegDecoder失败，继续..."
+        
+        # 尝试构建其他原生模块
+        echo "=== 尝试构建其他libs模块 ==="
+        for module in libs/*; do
+          if [ -d "$module" ]; then
+            module_name=$(basename "$module")
+            echo "=== 构建: :libs:$module_name ==="
+            ./gradlew ":libs:$module_name:assemble" --no-daemon --stacktrace || echo "构建:libs:$module_name失败，继续..."
+          fi
+        done
 
-    - name: 构建项目 (带调试)
+    - name: Build the main application
       run: |
         cd bv-source
         
-        echo "=== 开始构建 ==="
-        
-        # 先尝试简单的清理
-        ./gradlew clean --no-daemon || true
+        echo "=== 构建主应用 ==="
         
         # 查看可用的构建任务
-        echo "=== 可用构建任务 ==="
-        ./gradlew tasks --all | grep -i assemble || true
+        echo "=== 可用的构建任务 ==="
+        ./gradlew tasks --all | grep -i "assemble\|build" | head -30 || true
         
         # 尝试构建release版本
-        echo "=== 构建release ==="
-        ./gradlew assembleRelease --no-daemon --stacktrace
+        echo "=== 构建release版本 ==="
+        ./gradlew assembleRelease --no-daemon --stacktrace --info
         
-        echo "=== 查找生成的APK ==="
-        find . -name "*.apk" -type f 2>/dev/null | head -10 || true
+        echo "=== 检查生成的APK ==="
+        find . -name "*.apk" -type f 2>/dev/null | head -20 || true
+        ls -la app/build/outputs/apk/ 2>/dev/null || echo "未找到APK输出目录"
 
-    - name: 备选构建方案 (如果上述失败)
+    - name: Alternative build approaches
       if: failure()
       run: |
         cd bv-source
         
         echo "=== 尝试备选构建方案 ==="
         
-        # 尝试构建特定flavor
-        ./gradlew assembleDefaultRelease --no-daemon --stacktrace --info
+        # 方案1: 构建特定flavor
+        echo "=== 方案1: 构建default flavor ==="
+        ./gradlew assembleDefaultRelease --no-daemon --stacktrace
         
-        # 或者尝试debug版本
+        # 方案2: 构建debug版本
         if [ $? -ne 0 ]; then
-          echo "=== 尝试构建debug版本 ==="
+          echo "=== 方案2: 构建debug版本 ==="
           ./gradlew assembleDebug --no-daemon --stacktrace
         fi
+        
+        # 方案3: 仅构建移动端模块
+        if [ $? -ne 0 ]; then
+          echo "=== 方案3: 构建移动端模块 ==="
+          ./gradlew :app:mobile:assemble --no-daemon --stacktrace
+        fi
 
-    - name: 上传APK产物
+    - name: Upload APK artifacts
       if: success()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@main
       with:
         name: bv-app-release
-        path: bv-source/app/build/outputs/apk/
+        path: |
+          bv-source/app/build/outputs/apk/
+          bv-source/app/build/outputs/bundle/
         if-no-files-found: warn
         retention-days: 30
 
-    - name: 上传构建日志 (用于调试)
+    - name: Upload native build outputs
       if: always()
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@main
+      with:
+        name: native-build-outputs
+        path: |
+          bv-source/libs/*/build/outputs/
+          bv-source/libs/*/build/reports/
+        retention-days: 7
+
+    - name: Upload build logs for debugging
+      if: always()
+      uses: actions/upload-artifact@main
       with:
         name: build-logs
         path: |
           bv-source/build/reports/
           bv-source/.gradle/
+          bv-source/**/build/reports/
         retention-days: 7
