@@ -24,114 +24,151 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
 
+      # 修复：先进入 bv-source 目录
+      - name: Setup working directory
+        run: cd bv-source
+
+      # 修复：确保 app 目录存在并写入 google-services.json
       - name: Write google-services.json
         env:
           DATA: ${{ secrets.GOOGLE_SERVICES_JSON }}
-        # 修复：路径应该相对于 bv-source 目录
         run: |
           mkdir -p bv-source/app
-          echo $DATA > bv-source/app/google-services.json
+          echo "$DATA" > bv-source/app/google-services.json
+          echo "Google services file created at:"
+          ls -la bv-source/app/
 
-      - name: Change to source directory
-        run: cd bv-source
-
+      # 修复：为 gradlew 添加执行权限
       - name: Grant execute permission for gradlew
-        # 修复：路径应该相对于 bv-source 目录
         run: chmod +x bv-source/gradlew
 
+      # 修复：添加签名属性
       - name: Add signing properties
         env:
           SIGNING_PROPERTIES: ${{ secrets.SIGNING_PROPERTIES }}
-        # 修复：路径应该相对于 bv-source 目录
         run: |
-          echo ${{ secrets.SIGNING_PROPERTIES }} > bv-source/encoded_signing_properties
+          echo "$SIGNING_PROPERTIES" > bv-source/encoded_signing_properties
           base64 -Dd -i bv-source/encoded_signing_properties > bv-source/signing.properties
+          echo "Signing properties created:"
+          ls -la bv-source/signing.properties
 
+      # 修复：添加 jks 文件
       - name: Add jks file
-        # 修复：路径应该相对于 bv-source 目录
+        env:
+          SIGN_KEY: ${{ secrets.SIGN_KEY }}
         run: |
-          echo ${{ secrets.SIGN_KEY }} > bv-source/encoded_key
+          echo "$SIGN_KEY" > bv-source/encoded_key
           base64 -Dd -i bv-source/encoded_key > bv-source/key.jks
+          echo "Key file created:"
+          ls -la bv-source/key.jks
 
+      # 修复：在 bv-source 目录中构建
       - name: Build apk
-        # 修复：在 bv-source 目录中执行构建
-        run: cd bv-source && ./gradlew assembleDefaultRelease assembleDefaultDebug
+        run: |
+          cd bv-source
+          ./gradlew assembleDefaultRelease assembleDefaultDebug
+          echo "Build completed. Listing APK files:"
+          find app/build/outputs/apk -name "*.apk" -type f | xargs ls -la
 
+      # 修复：读取元数据文件
       - name: Read release apk output metadata
         id: apk-meta-release
         uses: juliangruber/read-file-action@v1
         with:
-          # 修复：路径应该相对于 bv-source 目录
           path: bv-source/app/build/outputs/apk/default/release/output-metadata.json
 
       - name: Read debug apk output metadata
-        id: apk-meta-release-debug
+        id: apk-meta-debug
         uses: juliangruber/read-file-action@v1
         with:
-          # 修复：路径应该相对于 bv-source 目录
           path: bv-source/app/build/outputs/apk/default/debug/output-metadata.json
 
+      # 修复：正确解析 JSON 数据
       - name: Parse apk infos
         id: apk-infos
         run: |
-          echo "release_info_version_code=${{ fromJson(steps.apk-meta-release.outputs.content).elements[0].versionCode }}" >> $GITHUB_ENV
-          echo "release_info_version_name=${{ fromJson(steps.apk-meta-release.outputs.content).elements[0].versionName }}" >> $GITHUB_ENV
-          echo "release_debug_info_version_code=${{ fromJson(steps.apk-meta-release-debug.outputs.content).elements[0].versionCode }}" >> $GITHUB_ENV
-          echo "release_debug_info_version_name=${{ fromJson(steps.apk-meta-release-debug.outputs.content).elements[0].versionName }}" >> $GITHUB_ENV
+          RELEASE_CONTENT='${{ steps.apk-meta-release.outputs.content }}'
+          DEBUG_CONTENT='${{ steps.apk-meta-debug.outputs.content }}'
+          
+          # 解析 release 版本信息
+          RELEASE_VERSION_CODE=$(echo "$RELEASE_CONTENT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['elements'][0]['versionCode'])")
+          RELEASE_VERSION_NAME=$(echo "$RELEASE_CONTENT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['elements'][0]['versionName'])")
+          
+          # 解析 debug 版本信息
+          DEBUG_VERSION_CODE=$(echo "$DEBUG_CONTENT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['elements'][0]['versionCode'])")
+          DEBUG_VERSION_NAME=$(echo "$DEBUG_CONTENT" | python3 -c "import sys, json; data=json.load(sys.stdin); print(data['elements'][0]['versionName'])")
+          
+          echo "release_info_version_code=$RELEASE_VERSION_CODE" >> $GITHUB_ENV
+          echo "release_info_version_name=$RELEASE_VERSION_NAME" >> $GITHUB_ENV
+          echo "release_debug_info_version_code=$DEBUG_VERSION_CODE" >> $GITHUB_ENV
+          echo "release_debug_info_version_name=$DEBUG_VERSION_NAME" >> $GITHUB_ENV
+          
+          echo "Release: v$RELEASE_VERSION_NAME ($RELEASE_VERSION_CODE)"
+          echo "Debug: v$DEBUG_VERSION_NAME ($DEBUG_VERSION_CODE)"
 
+      # 修复：获取变更日志
       - name: Get changelog
         id: changelog
-        # 修复：进入 bv-source 目录执行 git 命令
         run: |
           cd bv-source
           {
             echo "changelog<<EOF"
-            echo "$(git log --pretty=format:"- %s (%h)" ${{ github.event.before }}..${{ github.sha }})"
+            # 如果没有特定提交范围，则获取最近10个提交
+            if [ -z "${{ github.event.before }}" ] || [ -z "${{ github.sha }}" ]; then
+              echo "Recent changes:"
+              git log --oneline -10 --pretty=format:"- %s (%h)"
+            else
+              git log --pretty=format:"- %s (%h)" ${{ github.event.before }}..${{ github.sha }}
+            fi
             echo "EOF"
-          } >> "$GITHUB_ENV"
+          } >> "$GITHUB_OUTPUT"
 
-      # upload artifacts release debug
-
+      # 修复：上传调试版 APK
       - name: Archive release debug build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Release debug build artifact
-          # 修复：路径应该相对于 bv-source 目录
-          path: bv-source/app/build/outputs/apk/default/debug/BV_${{ env.release_debug_info_version_code }}_${{ env.release_debug_info_version_name }}_default_universal.apk
+          path: bv-source/app/build/outputs/apk/default/debug/*.apk
 
-      # upload artifacts release
-
+      # 修复：上传 release mapping
       - name: Archive release build mappings
         uses: actions/upload-artifact@v4
         with:
           name: Release build mappings
-          # 修复：路径应该相对于 bv-source 目录
-          path: bv-source/app/build/outputs/mapping/defaultRelease
+          path: bv-source/app/build/outputs/mapping/defaultRelease/*
 
+      # 修复：上传 release APK
       - name: Archive release build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: Release build artifact
-          # 修复：路径应该相对于 bv-source 目录
-          path: bv-source/app/build/outputs/apk/default/release/BV_${{ env.release_info_version_code }}_${{ env.release_info_version_name }}_default_universal.apk
+          path: bv-source/app/build/outputs/apk/default/release/*.apk
 
-      # zip mapping because softprops/action-gh-release can't upload folder
-
+      # 修复：压缩 mapping 文件
       - name: Zip mapping
-        # 修复：路径应该相对于 bv-source 目录
-        run: cd bv-source && zip -rj mapping.zip app/build/outputs/mapping/defaultRelease
+        run: |
+          cd bv-source
+          mkdir -p ../artifacts
+          zip -rj ../artifacts/mapping.zip app/build/outputs/mapping/defaultRelease
+          echo "Mapping zip created:"
+          ls -la ../artifacts/
 
-      # upload to github release
-
+      # 修复：发布到 GitHub Release
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            bv-source/app/build/outputs/apk/default/debug/BV_${{ env.release_debug_info_version_code }}_${{ env.release_debug_info_version_name }}_default_universal.apk
-            bv-source/app/build/outputs/apk/default/release/BV_${{ env.release_info_version_code }}_${{ env.release_info_version_name }}_default_universal.apk
-            bv-source/mapping.zip
-          tag_name: ${{ github.ref_name }}
-          name: ${{ env.release_info_version_name }}
+            bv-source/app/build/outputs/apk/default/debug/*.apk
+            bv-source/app/build/outputs/apk/default/release/*.apk
+            artifacts/mapping.zip
+          tag_name: v${{ env.release_info_version_name }}
+          name: Release v${{ env.release_info_version_name }}
           prerelease: false
-          body: ${{ env.changelog }}
+          body: |
+            ### Release v${{ env.release_info_version_name }} (${{ env.release_info_version_code }})
+            
+            **Debug Version:** v${{ env.release_debug_info_version_name }} (${{ env.release_debug_info_version_code }})
+            
+            **Changes:**
+            ${{ steps.changelog.outputs.changelog }}
           target_commitish: ${{ github.sha }}
