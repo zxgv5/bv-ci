@@ -1,0 +1,202 @@
+name: build-fantasytyx-bv-no3
+
+on:
+  push:
+    branches: [ develop ]
+  pull_request:
+    branches: [ develop ]
+  workflow_dispatch:
+
+env:
+  JDK_VERSION: '17'
+  ANDROID_COMPILE_SDK: '36'
+  ANDROID_BUILD_TOOLS: '36.0.0'
+  NDK_VERSION: '25.2.9519653'
+  CMAKE_VERSION: '3.22.1'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      # 阶段 1: 准备代码与环境
+      - name: Checkout source code with ALL submodules
+        uses: actions/checkout@v4
+        with:
+          repository: xqqv5/fantasy-bv
+          ref: develop
+          path: bv-source
+          submodules: 'recursive'
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Cache Gradle to accelerate build
+        uses: actions/cache@v3
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            bv-source/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/gradle/wrapper/gradle-wrapper.properties', '**/*.gradle*', '**/gradle.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Set up JDK ${{ env.JDK_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JDK_VERSION }}
+          distribution: 'temurin'
+
+      - name: Install Android SDK, NDK and CMake (FIXED VERSION)
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: ${{ env.ANDROID_COMPILE_SDK }}
+          build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
+          ndk: ${{ env.NDK_VERSION }} # 固定NDK版本，避免兼容性问题
+          cmake: ${{ env.CMAKE_VERSION }} # 固定CMake版本
+
+      - name: Install essential native build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            ninja-build \
+            build-essential \
+            nasm \
+            yasm \
+            pkg-config \
+            autoconf \
+            automake \
+            libtool
+
+      # 阶段 2: 强制初始化与验证所有子模块
+      - name: Force initialize and update ALL submodules
+        run: |
+          cd bv-source
+          echo "=== 强制递归初始化并更新所有子模块 ==="
+          # 清除可能的旧状态，确保拉取最新
+          git submodule deinit --force --all
+          git submodule update --init --recursive --force --depth=1
+          
+          echo "=== 验证关键子模块目录是否存在 ==="
+          # 检查你提到的所有关键库目录
+          for lib in libs/av1Decoder libs/ffmpegDecoder libs/libVLC libs/media3Container; do
+            if [ -d "$lib" ]; then
+              echo "✅ $lib 存在"
+              ls -la "$lib/" | head -5
+            else
+              echo "❌ 错误: $lib 不存在！"
+              exit 1 # 关键目录缺失，立即失败
+            fi
+          done
+          
+          echo "=== 验证akdanmaku模块 ==="
+          if [ -d "akdanmaku" ]; then
+            echo "✅ akdanmaku 存在"
+          else
+            echo "❌ 错误: akdanmaku 不存在！"
+            exit 1
+          fi
+
+      - name: Grant execute permission for gradlew
+        run: |
+          cd bv-source
+          chmod +x gradlew
+          ./gradlew --version # 验证Gradle环境
+
+      # 阶段 3: 按顺序独立构建每一个前置原生库 (失败则立即停止)
+      - name: Build Core Native Library - av1Decoder
+        run: |
+          cd bv-source
+          echo "=== 开始构建 av1Decoder (基础依赖) ==="
+          ./gradlew :libs:av1Decoder:assembleRelease --no-daemon --stacktrace --info
+          # 验证产物是否生成
+          if find libs/av1Decoder -name "*.so" -o -name "*.aar" | grep -q '.'; then
+            echo "✅ av1Decoder 构建成功，产物已生成。"
+          else
+            echo "❌ 错误: av1Decoder 未找到输出产物！"
+            exit 1
+          fi
+
+      - name: Build Core Native Library - ffmpegDecoder
+        run: |
+          cd bv-source
+          echo "=== 开始构建 ffmpegDecoder (核心解码器) ==="
+          ./gradlew :libs:ffmpegDecoder:assembleRelease --no-daemon --stacktrace --info
+          if find libs/ffmpegDecoder -name "*.so" -o -name "*.aar" | grep -q '.'; then
+            echo "✅ ffmpegDecoder 构建成功，产物已生成。"
+          else
+            echo "❌ 错误: ffmpegDecoder 未找到输出产物！"
+            exit 1
+          fi
+
+      - name: Build Core Native Library - libVLC
+        run: |
+          cd bv-source
+          echo "=== 开始构建 libVLC ==="
+          ./gradlew :libs:libVLC:assembleRelease --no-daemon --stacktrace --info
+          if find libs/libVLC -name "*.so" -o -name "*.aar" | grep -q '.'; then
+            echo "✅ libVLC 构建成功，产物已生成。"
+          else
+            echo "❌ 错误: libVLC 未找到输出产物！"
+            exit 1
+          fi
+
+      - name: Build Core Native Library - media3Container
+        run: |
+          cd bv-source
+          echo "=== 开始构建 media3Container ==="
+          ./gradlew :libs:media3Container:assembleRelease --no-daemon --stacktrace --info
+          if find libs/media3Container -name "*.so" -o -name "*.aar" | grep -q '.'; then
+            echo "✅ media3Container 构建成功，产物已生成。"
+          else
+            echo "❌ 错误: media3Container 未找到输出产物！"
+            exit 1
+          fi
+
+      # 阶段 4: 构建弹幕库 (纯Kotlin/Java，依赖原生库)
+      - name: Build Danmaku Library - akdanmaku
+        run: |
+          cd bv-source
+          echo "=== 开始构建弹幕库 akdanmaku ==="
+          ./gradlew :akdanmaku:assembleRelease --no-daemon --stacktrace --info
+          if find akdanmaku -name "*.aar" | grep -q '.'; then
+            echo "✅ akdanmaku 构建成功，产物已生成。"
+          else
+            echo "❌ 错误: akdanmaku 未找到输出产物！"
+            exit 1
+          fi
+
+      # 阶段 5: 构建主应用 (此时所有依赖已就绪)
+      - name: Build Main Application (Depends on all libraries)
+        run: |
+          cd bv-source
+          echo "=== 开始构建主应用，所有前置依赖已就绪 ==="
+          # 此命令会自动解析所有 `project()` 依赖并按需编译
+          ./gradlew :app:assembleRelease --no-daemon --stacktrace --info
+          
+          echo "=== 最终APK产物列表 ==="
+          find . -path "*/outputs/apk/*release/*.apk" -type f | while read apk; do
+            echo "📍 找到: $apk"
+            ls -lh "$apk"
+          done
+
+      # 阶段 6: 收集与上传产物
+      - name: Upload APK Artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bv-release-apks
+          path: |
+            bv-source/**/outputs/apk/**/*.apk
+            bv-source/**/outputs/aar/**/*.aar
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Upload Build Logs (for debugging if any step fails)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            bv-source/**/build/reports/
+            ${{ runner.temp }}/log_*.txt
+          retention-days: 7
