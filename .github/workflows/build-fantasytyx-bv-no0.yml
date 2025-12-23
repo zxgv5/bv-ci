@@ -1,4 +1,4 @@
-name: build-fantasytyx-bv-no0
+name: build-fantasytyx-bv
  
 on:
   push:
@@ -99,23 +99,11 @@ jobs:
           java-version: ${{ env.JDK_VERSION }}
           distribution: 'temurin'
  
-      # - name: Setup Android SDK (Minimal)
-      #   uses: android-actions/setup-android@main
-      #   with:
-      #     api-level: ${{ env.ANDROID_COMPILE_SDK }}
-      #     build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
-      #     # 由于是预编译库，NDK和CMake可能不是必需的，但保留以防万一
-      #     # ndk: '25.2.9519653'  # 如果后续编译akdanmaku需要NDK，请取消注释
-      - name: Setup Android SDK (Corrected)
-        uses: android-actions/setup-android@v3
+      - name: Setup Android SDK (Minimal)
+        uses: android-actions/setup-android@main
         with:
-          # 使用 packages 参数列出所有需要的组件
-          packages: |
-            platforms;android-36
-            build-tools;36.0.0
-            ndk;25.2.9519653
-            cmake;3.22.1
-          # 接受许可（可选，可避免交互式提示）
+          api-level: ${{ env.ANDROID_COMPILE_SDK }}
+          build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
           accept-android-sdk-licenses: true
       
       # 阶段 4: 应用项目特定配置
