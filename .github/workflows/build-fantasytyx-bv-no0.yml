@@ -1,17 +1,14 @@
 name: build-fantasytyx-bv-no0
- 
+
 on:
-  push:
-    branches: [ develop ]
-  pull_request:
-    branches: [ develop ]
   workflow_dispatch:
  
 env:
   JDK_VERSION: '21'
   ANDROID_COMPILE_SDK: '36'
   ANDROID_BUILD_TOOLS: '36.0.0'
- 
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -195,24 +192,14 @@ jobs:
           retention-days: 7
  
       - name: Create GitHub Release & Upload APK
-        # 通常我们只为特定事件（如打标签）创建正式发布，避免每次提交都产生大量Release。
-        # 这里示例：当推送的标签符合 ‘v*’ 模式（如 v1.0.0）时触发。
-        # if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@master
         with:
-          # 发布名称，默认使用标签名
-          name: Release ${{ github.ref_name }}
-          # 从文件生成发布说明，此处示例为读取 CHANGELOG.md。
-          # 你也可以使用 `body: |` 直接写字符串，或留空。
-          body_path: CHANGELOG.md
+          tag_name: latest-release
           # 要附加到此次发布的文件列表
           files: |
             fantasy-bv-source/app/build/outputs/apk/release/*.apk
-            # fantasy-bv-source/akdanmaku/build/outputs/aar/*release*.aar
           # 设置为 true 则每次运行覆盖同名草稿，适用于持续集成测试版
-          draft: false
+          draft: true
           # 是否为预发布版本
           prerelease: false
-        env:
-          # 使用自动生成的 GITHUB_TOKEN 进行认证
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
