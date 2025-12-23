@@ -199,7 +199,7 @@ jobs:
           files: |
             fantasy-bv-source/app/build/outputs/apk/release/*.apk
           # 设置为 true 则每次运行覆盖同名草稿，适用于持续集成测试版
-          draft: true
+          draft: false
           # 是否为预发布版本
           prerelease: false
           
