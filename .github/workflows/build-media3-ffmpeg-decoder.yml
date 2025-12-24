@@ -7,11 +7,13 @@ on:
       ANDROID_NDK:
         description: "Android NDK"
         required: true
-        default: 'r28'
+        # default: 'r28'
+        default: 'r29'
       ANDROID_ABI:
         description: "Android ABI"
         required: true
-        default: '21'
+        # default: '21'
+        default: '36'
       ENABLED_DECODERS:
         description: "Enabled FFmpeg decoder"
         required: true
@@ -53,10 +55,10 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@main
  
-      - name: Setup JDK 21
+      - name: Setup JDK 29
         uses: actions/setup-java@main
         with:
-          java-version: '21'
+          java-version: '29'
           distribution: 'temurin'
  
       - name: Setup Android NDK
