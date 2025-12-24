@@ -45,7 +45,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
  
-    step:
+    steps:
       - name: Initialization values
         run: |
           echo "BV_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
