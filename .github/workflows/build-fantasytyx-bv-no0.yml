@@ -199,7 +199,7 @@ jobs:
       - name: Create GitHub Release & Upload APK
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ${{env.OC_DATE}}-fantasybv
+          tag_name: ${{env.BV_DATE}}-fantasybv
           # tag_name: latest-release
           # 要附加到此次发布的文件列表
           files: |
