@@ -1,0 +1,70 @@
+﻿name: build-materialfiles
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout CI repository (for workflow only)
+      uses: actions/checkout@main
+      with:
+        path: ./ci-repo
+
+    - name: Clone MaterialFiles source code
+      run: |
+        git clone --depth 1 --recurse-submodules https://github.com/xqqv5/MaterialFiles.git materialfiles-source
+      working-directory: ./
+
+    - name: Set up JDK 21
+      uses: actions/setup-java@main
+      with:
+        distribution: 'temurin'
+        java-version: '21'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@main
+
+    - name: Decode and setup keystore
+      run: |
+        echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.p12
+        echo "RELEASE_STORE_FILE=keystore.p12" >> $GITHUB_ENV
+        echo "RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+        echo "RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+        echo "RELEASE_KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
+      working-directory: ./materialfiles-source
+
+    - name: Make gradlew executable
+      run: chmod +x ./gradlew
+      working-directory: ./materialfiles-source
+
+    - name: Build Release APK
+      run: ./gradlew assembleRelease
+      working-directory: ./materialfiles-source
+      env:
+        RELEASE_STORE_FILE: ${{ env.RELEASE_STORE_FILE }}
+        RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        RELEASE_KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+
+    - name: Find APK files
+      id: find-apk
+      run: |
+        APK_PATH=$(find . -name "*.apk" -type f | grep -i release | head -1)
+        echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
+        echo "Found APK: $APK_PATH"
+      working-directory: ./materialfiles-source
+
+    - name: Create Release
+      uses: softprops/action-gh-release@master
+      with:
+        files: ${{ steps.find-apk.outputs.APK_PATH }}
+        generate_release_notes: true
+        draft: false
+        prerelease: false
+        tag_name: release-${{ github.run_id }}
+        name: Release ${{ github.run_id }}
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
