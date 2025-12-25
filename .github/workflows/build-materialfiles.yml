@@ -1,4 +1,4 @@
-﻿name: build-materialfiles
+name: build-materialfiles
 
 on:
   workflow_dispatch:
@@ -27,13 +27,32 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@main
 
-    - name: Decode and setup keystore
+    - name: Decode keystore and create signing.properties
       run: |
+        # 解码keystore文件
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.p12
-        echo "RELEASE_STORE_FILE=keystore.p12" >> $GITHUB_ENV
-        echo "RELEASE_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-        echo "RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-        echo "RELEASE_KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
+        
+        # 获取keystore的绝对路径
+        KEYSTORE_PATH=$(realpath keystore.p12)
+        
+        # 创建signing.properties文件
+        cat > signing.properties << EOF
+        storeFile=$KEYSTORE_PATH
+        storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+        keyAlias=${{ secrets.KEY_ALIAS }}
+        keyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}
+        EOF
+        
+        # 或者，作为替代方案，也设置环境变量（双重保障）
+        echo "STORE_FILE=$KEYSTORE_PATH" >> $GITHUB_ENV
+        echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+        echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+        echo "KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
+        
+        echo "Created signing.properties with signing configuration"
+        echo "Store file path: $KEYSTORE_PATH"
+        echo "signing.properties content (passwords masked):"
+        sed 's/password=.*/password=***/g' signing.properties
       working-directory: ./materialfiles-source
 
     - name: Make gradlew executable
@@ -44,17 +63,34 @@ jobs:
       run: ./gradlew assembleRelease
       working-directory: ./materialfiles-source
       env:
-        RELEASE_STORE_FILE: ${{ env.RELEASE_STORE_FILE }}
-        RELEASE_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        RELEASE_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        RELEASE_KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+        STORE_FILE: ${{ env.STORE_FILE }}
+        STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
 
     - name: Find APK files
       id: find-apk
       run: |
-        APK_PATH=$(find . -name "*.apk" -type f | grep -i release | head -1)
+        # 首先尝试在标准的release目录中查找
+        if [ -d "app/build/outputs/apk/release" ]; then
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f | head -1)
+        else
+          # 如果标准目录不存在，则在整个项目中查找
+          APK_PATH=$(find . -name "*.apk" -type f | grep -i release | head -1)
+        fi
+        
+        if [ -z "$APK_PATH" ]; then
+          echo "No APK files found!"
+          # 列出构建输出目录以进行调试
+          echo "Listing build outputs:"
+          find app/build/outputs -type f 2>/dev/null || echo "No outputs directory found"
+          exit 1
+        fi
+        
         echo "APK_PATH=$APK_PATH" >> $GITHUB_OUTPUT
         echo "Found APK: $APK_PATH"
+        echo "APK file details:"
+        ls -la "$APK_PATH"
       working-directory: ./materialfiles-source
 
     - name: Create Release
