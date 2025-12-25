@@ -3,11 +3,19 @@ name: build-materialfiles
 on:
   workflow_dispatch:
 
+env:
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+
 jobs:
   build-and-release:
     runs-on: ubuntu-latest
 
     steps:
+    - name: Initialization values
+      run: |
+        echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
+ 
     - name: Checkout CI repository (for workflow only)
       uses: actions/checkout@main
       with:
@@ -96,11 +104,7 @@ jobs:
     - name: Create Release
       uses: softprops/action-gh-release@master
       with:
-        files: ${{ steps.find-apk.outputs.APK_PATH }}
-        generate_release_notes: true
+        tag_name: ${{env.BUILD_DATE}}-materialfiles
+        files: ./materialfiles-source/${{ steps.find-apk.outputs.APK_PATH }}
         draft: false
         prerelease: false
-        tag_name: release-${{ github.run_id }}
-        name: Release ${{ github.run_id }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
