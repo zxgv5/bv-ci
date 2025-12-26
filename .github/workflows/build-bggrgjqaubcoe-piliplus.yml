@@ -79,6 +79,6 @@ jobs:
         with:
           tag_name: ${{env.BUILD_DATE}}-piliplus
           files: |
-              PiliPlus_android_*.apk
+              PiliPlus_android_*-v8a.apk
           draft: false
           prerelease: false
