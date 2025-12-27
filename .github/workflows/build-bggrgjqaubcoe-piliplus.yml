@@ -42,10 +42,9 @@ jobs:
           # flutter-version-file: pubspec.yaml
           # cache: true
           # 尝试更激进的版本策略
-          channel: dev
+          channel: master
       - run: flutter --version
 
-      
       - name: Apply bottom sheet patch
         working-directory: ${{ env.FLUTTER_ROOT }}
         run: git apply $GITHUB_WORKSPACE/lib/scripts/bottom_sheet_patch.diff
