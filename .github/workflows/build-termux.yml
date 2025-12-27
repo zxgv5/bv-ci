@@ -27,26 +27,34 @@ jobs:
           ref: master
           path: ${{ env.SOURCE_DIR }}
       
-      # ✅ 添加以下步骤（确保未注释）
       - name: Set up JDK 11
         uses: actions/setup-java@main
         with:
           distribution: 'temurin'
           java-version: '11'
       
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@main
+      - name: Download and setup Android SDK
+        run: |
+          # 下载支持 JDK 11 的 Android SDK 命令行工具
+          SDK_TOOLS_VERSION="9477386"  # 支持 JDK 11 的版本
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-${SDK_TOOLS_VERSION}_latest.zip
+          unzip -q commandlinetools-linux-${SDK_TOOLS_VERSION}_latest.zip
+          mkdir -p $ANDROID_HOME/cmdline-tools
+          mv cmdline-tools $ANDROID_HOME/cmdline-tools/latest
+          rm commandlinetools-linux-${SDK_TOOLS_VERSION}_latest.zip
+          
+          # 设置环境变量
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_SDK_ROOT=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "PATH=$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH" >> $GITHUB_ENV
       
       - name: Install Android SDK components
         run: |
-          # 确保 sdkmanager 可用
-          export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$PATH"
-          
           # 接受许可证
-          yes | sdkmanager --licenses
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses
           
-          # 安装必要的组件
-          sdkmanager \
+          # 安装必要的组件（根据 Termux 项目的要求）
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager \
             "platform-tools" \
             "platforms;android-30" \
             "build-tools;30.0.3" \
@@ -54,7 +62,7 @@ jobs:
             "cmake;3.18.1"
           
           # 验证安装
-          sdkmanager --list
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --list
       
       - name: Decode Keystore
         env:
