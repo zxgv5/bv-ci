@@ -69,10 +69,12 @@ jobs:
         
       - name: Rename apk
         run: |
-          for file in build/app/outputs/flutter-apk/app-*-release.apk; do
-            abi=$(echo "$file" | sed -E 's|.*app-(.*)-release\.apk|\1|')
-            mv "$file" "PiliPlus_android_${{ env.version }}_${abi}.apk"
-          done
+          # for file in build/app/outputs/flutter-apk/app-*-release.apk; do
+            # abi=$(echo "$file" | sed -E 's|.*app-(.*)-release\.apk|\1|')
+            # mv "$file" "PiliPlus_android_${{ env.version }}_${abi}.apk"
+          # done
+          # 配合仅编译arm64-v8a架构版本导致的文件名变化进行的修改
+          mv "app-release.apk" "PiliPlus_android_${{ env.version }}_${abi}.apk"
         shell: bash
         
       - name: Create GitHub Release & Upload APK
