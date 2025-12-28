@@ -118,8 +118,6 @@ jobs:
         id: release_normal
         uses: softprops/action-gh-release@master
         with:
-          prerelease: false
-          draft: false
           tag_name: ${{ env.BUILD_DATE }}-acode
           files: |
             ./tmp/app-release-normal.apk
