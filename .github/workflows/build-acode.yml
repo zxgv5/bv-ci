@@ -120,7 +120,7 @@ jobs:
         with:
           tag_name: ${{ env.BUILD_DATE }}-acode
           files: |
-            ${{ GITHUB_OUTPUT.NORMAL_APK_PATH }}
-            ${{ GITHUB_OUTPUT.FDROID_APK_PATH }}
+            /tmp/app-release-normal.apk
+            /tmp/app-release-fdroid.apk
           draft: false
           prerelease: false
