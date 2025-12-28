@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 env:
-  STORE_FILE_PATH: /tmp/app-release.keystore
+  STORE_FILE_PATH: ./tmp/app-release.keystore
   BUILD_JSON_PATH: build.json
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   
@@ -21,22 +21,7 @@ jobs:
       - name: Initialization values
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
-    
-      - name: Fast Fail if secrets are missing
-        if: ${{ !secrets.KEYSTORE_CONTENT || !secrets.ACODE_BUILD_JSON_CONTENT }}
-        run: |
-          echo "::error title=Missing Secrets::KEYSTORE_CONTENT or ACODE_BUILD_JSON_CONTENT secrets are missing! Aborting workflow."
-          exit 1
-      
-      - name: Logging & summaries
-        run: |
-          echo "::group::Logging" 
-          echo "🎯 github trigger event name: ${{ github.event_name }}"
-          echo "env: STORE_FILE_PATH: ${{ env.STORE_FILE_PATH }}" 
-          echo "env: BUILD_JSON_PATH: ${{ env.BUILD_JSON_PATH }}" 
-          echo "github sha: ${{ github.sha }}" 
-          echo "::endgroup::" 
-
+  
       - name: Checkout Source repo
         uses: actions/checkout@main
         with:
