@@ -121,13 +121,22 @@ jobs:
           rm -f ${{ env.STORE_FILE_PATH }} ${{ env.BUILD_JSON_PATH }}
           echo "Keystore and build.json removed successfully."
       
-      - name: Create gitHub release
-        id: release
+      - name: Prepare release assets
+        id: prepare_assets
+        run: |
+          echo "Prepared release assets for GitHub release"
+          echo "NORMAL_APK_PATH=/tmp/app-release-normal.apk" >> $GITHUB_OUTPUT
+          echo "FDROID_APK_PATH=/tmp/app-release-fdroid.apk" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub release with APK
+        id: release_normal
         uses: softprops/action-gh-release@master
         with:
           prerelease: false
           draft: false
           tag_name: ${{ env.BUILD_DATE }}-acode
           files: |
-            /tmp/app-release-normal.apk
-            /tmp/app-release-fdroid.apk
+            ./tmp/app-release-normal.apk
+            ./tmp/app-release-fdroid.apk
+          draft: false
+          prerelease: false
