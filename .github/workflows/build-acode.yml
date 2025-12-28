@@ -7,7 +7,7 @@ permissions:
   contents: write
 
 env:
-  STORE_FILE_PATH: ./tmp/app-release.keystore
+  STORE_FILE_PATH: /tmp/app-release.keystore
   BUILD_JSON_PATH: build.json
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   
@@ -120,7 +120,7 @@ jobs:
         with:
           tag_name: ${{ env.BUILD_DATE }}-acode
           files: |
-            ./tmp/app-release-normal.apk
-            ./tmp/app-release-fdroid.apk
+            ${{ GITHUB_OUTPUT.NORMAL_APK_PATH }}
+            ${{ GITHUB_OUTPUT.FDROID_APK_PATH }}
           draft: false
           prerelease: false
