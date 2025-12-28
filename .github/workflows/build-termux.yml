@@ -5,7 +5,7 @@ on:
   workflow_call:
   
 env:
-  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
@@ -39,12 +39,11 @@ jobs:
           exit_on_error() { echo "$1"; exit 1; }
 
           echo "Setting vars"
-
           if [ "$GITHUB_EVENT_NAME" == "pull_request" ]; then
               GITHUB_SHA="${{ github.event.pull_request.head.sha }}"
           fi
 
-          # Set RELEASE_VERSION_NAME to "<CURRENT_VERSION_NAME>+<last_commit_hash>"
+          # Set RELEASE_VERSION_NAME
           CURRENT_VERSION_NAME_REGEX='\s+versionName "([^"]+)"$'
           CURRENT_VERSION_NAME="$(grep -m 1 -E "$CURRENT_VERSION_NAME_REGEX" ./app/build.gradle | sed -r "s/$CURRENT_VERSION_NAME_REGEX/\1/")"
           RELEASE_VERSION_NAME="v$CURRENT_VERSION_NAME+${GITHUB_SHA:0:7}"
@@ -89,34 +88,33 @@ jobs:
           }
           EOF
           
-          # ?? 关键修改：在 assembleRelease 后面添加参数，只构建 arm64-v8a
-          if ! ./gradlew assembleRelease -Pandroid.injected.build.abi=arm64-v8a; then
+          # 只需执行标准构建
+          if ! ./gradlew assembleRelease; then
             exit_on_error "Build failed."
           fi
 
           echo "Validating APKs"
-          if ! test -f "$APK_DIR_PATH/${APK_BASENAME_PREFIX}_arm64-v8a.apk"; then
-            files_found="$(ls "$APK_DIR_PATH")"
-            exit_on_error "Failed to find built APK. Files found: $files_found"
+          
+          # ------------------------------------------------------
+          # ?? 修改点：验证 universal.apk 而不是 arm64-v8a.apk
+          # ------------------------------------------------------
+          UNIVERSAL_APK="$APK_DIR_PATH/${APK_BASENAME_PREFIX}_universal.apk"
+          if [ ! -f "$UNIVERSAL_APK" ]; then
+            echo " Error: Universal APK not found!"
+            ls -la "$APK_DIR_PATH"
+            exit 1
           fi
 
           echo "Generating sha256sums file"
-          (cd "$APK_DIR_PATH"; sha256sum "${APK_BASENAME_PREFIX}_arm64-v8a.apk" > "${APK_BASENAME_PREFIX}_sha256sums")
-
-      - name: Attach arm64-v8a APK file
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ env.APK_BASENAME_PREFIX }}_arm64-v8a
-          path: |
-            ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_arm64-v8a.apk
-            ${{ env.APK_DIR_PATH }}/output-metadata.json
+          # 针对 universal 文件生成校验码
+          (cd "$APK_DIR_PATH"; sha256sum "${APK_BASENAME_PREFIX}_universal.apk" > "${APK_BASENAME_PREFIX}_sha256sums")
 
       - name: Create GitHub Release & Upload APK
         uses: softprops/action-gh-release@master
         with:
           tag_name: ${{env.BUILD_DATE}}-termux
           files: |
-            ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_arm64-v8a.apk
+            ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_universal.apk
             ${{ env.APK_DIR_PATH }}/output-metadata.json
           draft: false
           prerelease: false
