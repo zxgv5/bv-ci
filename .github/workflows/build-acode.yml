@@ -9,7 +9,8 @@ permissions:
 env:
   STORE_FILE_PATH: /tmp/app-release.keystore
   BUILD_JSON_PATH: build.json
-
+  GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+  
 jobs:
   build:
     # timeout-minutes: 60
