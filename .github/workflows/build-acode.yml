@@ -9,26 +9,20 @@ permissions:
 env:
   STORE_FILE_PATH: /tmp/app-release.keystore
   BUILD_JSON_PATH: build.json
-  VERSION_LABEL: 'nightly'
 
 jobs:
   build:
     # timeout-minutes: 60
     runs-on: ubuntu-latest
-    permissions:
-      contents: write  # 修复：使用正确的权限
+    # 移除重复的 permissions 定义
 
-    outputs:
-      release_output_url: ${{ steps.release.outputs.url }} 
-      updated_version: ${{ steps.update-version.outputs.UPDATED_VERSION}} 
-      RELEASE_NOTES: ${{ env.RELEASE_NOTES }}
     steps:
       - name: Initialization values
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
     
       - name: Fast Fail if secrets are missing
-        if: ${{ secrets.KEYSTORE_CONTENT == '' || secrets.ACODE_BUILD_JSON_CONTENT == '' }}  # 修复：直接检查secrets
+        if: ${{ !secrets.KEYSTORE_CONTENT || !secrets.ACODE_BUILD_JSON_CONTENT }}
         run: |
           echo "::error title=Missing Secrets::KEYSTORE_CONTENT or ACODE_BUILD_JSON_CONTENT secrets are missing! Aborting workflow."
           exit 1
@@ -54,7 +48,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '21'
-          cache: 'gradle'  # 修复：简化缓存逻辑
+          cache: 'gradle'
 
       - name: Set up Node.js
         uses: actions/setup-node@main
@@ -63,8 +57,8 @@ jobs:
 
       - name: Add keystore and build.json from secrets
         run: |
-          echo "${{ secrets.KEYSTORE_CONTENT }}" | base64 -d > $STORE_FILE_PATH
-          echo "${{ secrets.ACODE_BUILD_JSON_CONTENT }}" | base64 -d > $BUILD_JSON_PATH
+          echo "${{ secrets.KEYSTORE_CONTENT }}" | base64 -d > ${{ env.STORE_FILE_PATH }}
+          echo "${{ secrets.ACODE_BUILD_JSON_CONTENT }}" | base64 -d > ${{ env.BUILD_JSON_PATH }}
           echo "Keystore and build.json added successfully."
 
       - name: Export Commit Hash & prev tag
@@ -87,10 +81,10 @@ jobs:
           echo "Extracted Version: $VERSION"
 
       - name: Append Commit Hash to Version and Update config.xml
-        id: update-version 
+        id: update-version
         run: |
           SHORT_COMMIT_HASH=$(echo "${{ env.GIT_COMMIT }}" | cut -c 1-7)
-          UPDATED_VERSION="${{ steps.extract_version.outputs.VERSION }}-${{ env.VERSION_LABEL }}.$SHORT_COMMIT_HASH"
+          UPDATED_VERSION="${{ steps.extract_version.outputs.VERSION }}-$SHORT_COMMIT_HASH"
           echo "Updated Version: $UPDATED_VERSION"
           
           # Update config.xml with the new version
@@ -98,7 +92,7 @@ jobs:
           echo "Updated version in config.xml"
           # Output the updated version
           echo "UPDATED_VERSION=$UPDATED_VERSION" >> $GITHUB_ENV
-          echo "UPDATED_VERSION=$UPDATED_VERSION" >> $GITHUB_OUTPUT 
+          echo "UPDATED_VERSION=$UPDATED_VERSION" >> $GITHUB_OUTPUT
 
       - name: Install Node.js Packages
         run: npm install
@@ -114,7 +108,7 @@ jobs:
           node utils/storage_manager.mjs y
           npm run build paid release apk
           mv platforms/android/app/build/outputs/apk/release/app-release.apk /tmp/app-release-normal.apk
-          echo "VERSION: $UPDATED_VERSION" >> $GITHUB_STEP_SUMMARY
+          echo "VERSION: ${{ env.UPDATED_VERSION }}" >> $GITHUB_STEP_SUMMARY
            
       - name: Run npm build paid release apk fdroid (for F-Droid)
         run: |
@@ -124,7 +118,7 @@ jobs:
       
       - name: Remove keystore and build.json
         run: |
-          rm -f $STORE_FILE_PATH $BUILD_JSON_PATH  # 修复：添加-f标志防止错误
+          rm -f ${{ env.STORE_FILE_PATH }} ${{ env.BUILD_JSON_PATH }}
           echo "Keystore and build.json removed successfully."
       
       - name: Create gitHub release
@@ -133,10 +127,7 @@ jobs:
         with:
           prerelease: false
           draft: false
-          tag_name: ${{ env.BUILD_DATE }}-acode  # 修复：使用env前缀
+          tag_name: ${{ env.BUILD_DATE }}-acode
           files: |
             /tmp/app-release-normal.apk
             /tmp/app-release-fdroid.apk
-
-
-
