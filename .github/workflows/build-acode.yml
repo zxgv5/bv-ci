@@ -128,7 +128,9 @@ jobs:
           # 显式调用Gradle release构建
           cd platforms/android
           ./gradlew assembleRelease
-          mv app/build/outputs/apk/release/app-release-unsigned.apk /tmp/acode-release-unsigned.apk
+          ls app/build/outputs/apk/release/*.apk
+          ls app/build/outputs/apk/*.apk
+          # mv app/build/outputs/apk/release/app-release-unsigned.apk /tmp/acode-release-unsigned.apk
           
       - name: Sign the apk (PKCS12)
         run: |
