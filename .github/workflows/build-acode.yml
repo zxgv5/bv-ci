@@ -13,11 +13,7 @@ env:
   KEYSTORE_PASSWORD: ${{secrets.KEYSTORE_PASSWORD}}
   KEY_ALIAS: ${{secrets.KEY_ALIAS}}
   KEY_PASSWORD: ${{secrets.KEY_PASSWORD}}
-  GIT_COMMIT: ${{ env.GIT_COMMIT }}
-  PREV_TAG: ${{ env.PREV_TAG }}
-  VERSION_CODE: ${{ steps.extract_version.outputs.VERSION_CODE }}
-  VERSION: ${{ steps.extract_version.outputs.VERSION }}
-  UPDATED_VERSION: ${{ env.UPDATED_VERSION }}
+
 
 jobs:
   build:
