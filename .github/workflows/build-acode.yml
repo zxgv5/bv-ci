@@ -126,6 +126,9 @@ jobs:
           npm run build free prod apk
           # 显式调用Gradle release构建
           cd platforms/android
+          ./gradlew clean
+          ./gradlew processReleaseResources
+          ./gradlew compileReleaseSources
           ./gradlew assembleRelease
           ls app/build/outputs/apk/release/*.apk
           # ls app/build/outputs/apk/*.apk
