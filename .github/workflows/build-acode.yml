@@ -11,6 +11,8 @@ env:
   BUILD_JSON_PATH: build.json
   GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
   KEYSTORE_PASSWORD: ${{secrets.KEYSTORE_PASSWORD}}
+  KEY_ALIAS: ${{secrets.KEY_ALIAS}}
+  KEY_PASSWORD: ${{secrets.KEY_PASSWORD}}
 
 jobs:
   build:
@@ -46,7 +48,6 @@ jobs:
           echo "${{ secrets.ACODE_BUILD_JSON_CONTENT }}" | base64 -d > ${{ env.BUILD_JSON_PATH }}
           echo "Keystore and build.json added successfully."
           # 验证keystore密码
-          echo "Verifying keystore password..."
           echo "${{ env.KEYSTORE_PASSWORD }}" > /tmp/keystore_password.txt
           keytool -list -keystore ${{ env.STORE_FILE_PATH }} -storepass "$(cat /tmp/keystore_password.txt)" -v || {
             echo "Keystore password verification failed!"
@@ -100,7 +101,10 @@ jobs:
           node utils/storage_manager.mjs y
           # 确保使用release构建
           npm run build paid release apk -- --release
-          mv platforms/android/app/build/outputs/apk/release/app-release.apk /tmp/app-release-normal.apk
+          # 显式调用Gradle release构建
+          cd platforms/android
+          ./gradlew assembleRelease
+          mv app/build/outputs/apk/release/app-release.apk /tmp/app-release-normal.apk
           echo "VERSION: ${{ env.UPDATED_VERSION }}" >> $GITHUB_STEP_SUMMARY
            
       - name: Run npm build paid release apk fdroid (for F-Droid)
@@ -108,7 +112,10 @@ jobs:
           node utils/storage_manager.mjs y
           # 确保使用release构建
           npm run build paid release apk fdroid -- --release
-          mv platforms/android/app/build/outputs/apk/release/app-release.apk /tmp/app-release-fdroid.apk
+          # 显式调用Gradle release构建
+          cd platforms/android
+          ./gradlew assembleRelease
+          mv app/build/outputs/apk/release/app-release.apk /tmp/app-release-fdroid.apk
       
       - name: Remove keystore and build.json
         run: |
