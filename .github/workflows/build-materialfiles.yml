@@ -8,17 +8,19 @@ env:
 
 jobs:
   build-and-release:
+
     runs-on: ubuntu-latest
 
     steps:
-    - name: Initialization values
-      run: |
-        echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
- 
-    - name: Checkout CI repository (for workflow only)
+
+    - name: Checkout Source repository 
       uses: actions/checkout@main
       with:
         path: ./ci-repo
+
+    - name: Initialization values
+      run: |
+        echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
     - name: Clone MaterialFiles source code
       run: |
