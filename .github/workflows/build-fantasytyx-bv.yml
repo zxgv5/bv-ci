@@ -14,12 +14,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 阶段 0: 环境变量初始化
-      - name: Initialization values
-        run: |
-          echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
-
-      # 阶段 1: 并行克隆两个仓库
+      # 阶段 0: 并行克隆两个仓库
       - name: Checkout MAIN source repo (fantasy-bv)
         uses: actions/checkout@main
         with:
@@ -35,6 +30,11 @@ jobs:
           repository: zxgv5/bv-libs
           ref: main
           path: bv-libs-source
+
+      # 阶段 1: 环境变量初始化
+      - name: Initialization values
+        run: |
+          echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
       # 阶段 2: 从Monorepo精确合并每个库（核心改进）
       - name: Merge Libraries from Monorepo Structure
