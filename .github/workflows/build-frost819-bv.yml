@@ -33,6 +33,52 @@ jobs:
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
+      - name: Merge libraries from monorepo structure
+        run: |
+          echo "=== 从 bv-libs Monorepo 复制各子库 ==="
+          cd frost819-bv-source
+          
+          # 确保主项目的 libs 目录存在
+          mkdir -p libs
+          
+          # 定义需要复制的库及其在bv-libs中的路径（与你提供的URL对应）
+          declare -A LIB_PATHS
+          LIB_PATHS=(
+            ["av1Decoder"]="av1Decoder"
+            ["ffmpegDecoder"]="ffmpegDecoder"
+            ["libVLC"]="libVLC"
+            ["media3Container"]="media3Container"
+          )
+          
+          for LIB_NAME in "${!LIB_PATHS[@]}"; do
+            SRC_PATH="../bv-libs-source/${LIB_PATHS[$LIB_NAME]}"
+            DEST_PATH="libs/$LIB_NAME"
+            
+            echo "处理库: $LIB_NAME"
+            echo "  源路径: $SRC_PATH"
+            
+            if [ -d "$SRC_PATH" ]; then
+              # 删除目标目录，确保干净复制
+              rm -rf "$DEST_PATH"
+              # 复制整个库目录（包含 .aar 和 .kts 等所有文件）
+              cp -r "$SRC_PATH" "$DEST_PATH"
+              echo "  已复制到: $DEST_PATH"
+              # 显示复制后的关键文件
+              if [ -f "$DEST_PATH"/*.aar ]; then
+                echo "  包含AAR文件: $(ls "$DEST_PATH"/*.aar | head -1 | xargs basename)"
+              fi
+            else
+              echo "  错误：源路径不存在！"
+              echo "  当前bv-libs-source目录内容:"
+              ls -la "../bv-libs-source/" || true
+              exit 1
+            fi
+            echo ""
+          done
+          
+          echo "=== 合并完成，最终 libs/ 目录结构 ==="
+          ls -la libs/
+
       - name: Cache gradle
         uses: actions/cache@main
         with:
