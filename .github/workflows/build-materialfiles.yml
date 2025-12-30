@@ -18,7 +18,7 @@ jobs:
         fetch-depth: 0
         repository: zhanghai/MaterialFiles
         ref: master
-        path: ./
+        path: ./materialfiles-source
         # path: ./ci-repo
 
     - name: Initialization values
