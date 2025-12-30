@@ -77,25 +77,29 @@ jobs:
           echo "Gradle 版本信息:"
           ./gradlew --version
 
-      - name: Decode and Write Release Keystore
+      - name: Decode and write release keystore
         working-directory: ./frost819-bv-source
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.p12
-
-      - name: Write signing.properties for Release Build
+          # 同时，创建一个虚拟的debug密钥库文件（例如，直接复制一份release的，或创建一个空文件）
+          # 这里选择复制，以确保它是一个有效的文件
+          cp keystore.p12 debug.keystore
+      
+      - name: Write signing.properties for release build
         working-directory: ./frost819-bv-source
         run: |
           cat <<EOF > signing.properties
-          # CI只提供release构建的密钥，debug配置留空或使用占位符
+          # 1. 提供真实且有效的RELEASE签名配置（用于最终的APK签名）
           releaseStoreFile=keystore.p12
           releaseKeyAlias=${{ secrets.KEY_ALIAS }}
           releaseStorePassword=${{ secrets.KEYSTORE_PASSWORD }}
           releaseKeyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}
-          # 为避免debug配置读取失败，可以赋予其一个明确为空或无效的值
-          debugStoreFile=
-          debugKeyAlias=
-          debugStorePassword=
-          debugKeyPassword=
+      
+          # 2. 提供虚拟但有效的DEBUG签名配置（仅用于绕过脚本检查）
+          debugStoreFile=debug.keystore
+          debugKeyAlias=androiddebugkey
+          debugStorePassword=android
+          debugKeyPassword=android
           EOF
 
       - name: Build release apk files
