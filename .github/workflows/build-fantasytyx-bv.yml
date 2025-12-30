@@ -14,7 +14,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 阶段 0: 并行克隆两个仓库
+      - name: Clean runner environment
+        run: |
+          # 清理可能存在的全局缓存文件
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.android/build-cache/
+
+      # 并行克隆两个仓库
       - name: Checkout source repo (fantasy-bv)
         uses: actions/checkout@main
         with:
@@ -30,12 +36,12 @@ jobs:
           ref: main
           path: bv-libs-source
 
-      # 阶段 1: 环境变量初始化
+      # 环境变量初始化
       - name: Initialization values
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
-      # 阶段 2: 从Monorepo精确合并每个库（核心改进）
+      # 从Monorepo精确合并每个库（核心改进）
       - name: Merge libraries from monorepo structure
         run: |
           echo "=== 从 bv-libs Monorepo 复制各子库 ==="
@@ -82,7 +88,7 @@ jobs:
           echo "=== 合并完成，最终 libs/ 目录结构 ==="
           ls -la libs/
  
-      # 阶段 3: 设置构建环境
+      # 设置构建环境
       - name: Cache gradle
         uses: actions/cache@main
         with:
@@ -107,7 +113,7 @@ jobs:
           build-tools: ${{ env.ANDROID_BUILD_TOOLS }}
           accept-android-sdk-licenses: true
 
-      # 阶段 4: 应用项目特定配置
+      # 应用项目特定配置
       - name: Fix app version calculation
         working-directory: ./fantasy-bv-source
         run: |
@@ -121,7 +127,7 @@ jobs:
             echo "警告: 未找到 $config_file，跳过版本修改。"
           fi
  
-      # 阶段 5: 验证与准备构建
+      # 验证与准备构建
       - name: Validate final project structure
         working-directory: ./fantasy-bv-source
         run: |
@@ -167,7 +173,7 @@ jobs:
           keystore.alias_pwd=${{ secrets.KEY_ALIAS_PASSWORD }}
           EOF
 
-      # 阶段 6: 顺序构建（先编译akdanmaku，再构建主应用）
+      # 顺序构建（先编译akdanmaku，再构建主应用）
       - name: Build danmaku module (akdanmaku)
         working-directory: ./fantasy-bv-source
         run: |
@@ -189,7 +195,7 @@ jobs:
           
           mv "fantasy-bv-source/app/build/outputs/apk/default/release/*.apk" "fantasy-bv-source/app/build/outputs/apk/default/release/fantasybv-${{ env.BUILD_DATE }}.apk"
  
-      # 阶段 7: 收集与上传结果
+      # 收集与上传结果
       # - name: Upload APK Artifacts
       #   if: success()
       #   uses: actions/upload-artifact@main

@@ -10,6 +10,12 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Clean runner environment
+        run: |
+          # 清理可能存在的全局缓存文件
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.android/build-cache/
+
       - name: Checkout source repo
         uses: actions/checkout@main
         with:
