@@ -220,6 +220,7 @@ jobs:
           # 要附加到此次发布的文件列表
           files: |
             fantasy-bv-source/app/build/outputs/apk/default/release/fantasybv-${{ env.BUILD_DATE }}.apk
+            fantasy-bv-source/akdanmaku/build/outputs/aar/**/*release*.aar
             # fantasy-bv-source/app/build/outputs/apk/default/release/*.apk
           # 设置为 true 则每次运行覆盖同名草稿，适用于持续集成测试版
           draft: false
