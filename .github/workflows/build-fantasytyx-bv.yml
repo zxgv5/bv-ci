@@ -193,7 +193,7 @@ jobs:
             echo "  $(ls -lh "$apk")"
           done || echo "未找到APK文件，请检查构建日志。"
           
-          mv "fantasy-bv-source/app/build/outputs/apk/default/release/*.apk" "fantasy-bv-source/app/build/outputs/apk/default/release/fantasybv-${{ env.BUILD_DATE }}.apk"
+          mv "./app/build/outputs/apk/default/release/*.apk" "./app/build/outputs/apk/default/release/fantasybv-${{ env.BUILD_DATE }}.apk"
  
       # 收集与上传结果
       # - name: Upload APK Artifacts

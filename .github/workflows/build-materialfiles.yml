@@ -81,6 +81,7 @@ jobs:
 
     - name: Find apk files and rename
       id: find-apk
+      working-directory: ./materialfiles-source
       run: |
         # 首先尝试在标准的release目录中查找
         if [ -d "app/build/outputs/apk/release" ]; then
@@ -124,8 +125,7 @@ jobs:
         echo "APK file details:"
         ls -la "$APK_NEW_PATH"
         
-        mv "./materialfiles-source/${{ steps.find-apk.outputs.APK_NEW_PATH }}" "./materialfiles-source/materialfiles-${{ env.BUILD_DATE }}.apk"
-      working-directory: ./materialfiles-source
+        mv "./${{ steps.find-apk.outputs.APK_NEW_PATH }}" "./materialfiles-${{ env.BUILD_DATE }}.apk"
 
     - name: Create github release & upload apk
       uses: softprops/action-gh-release@master

@@ -256,8 +256,7 @@ jobs:
             echo "  $(ls -lh "$apk")"
           done || echo "未找到APK文件，请检查构建日志。"
           
-          # 注意：这里的路径已移除开头的 frost819-bv-source/，因为 working-directory 已设置
-          mv "app/build/outputs/apk/default/release/"*.apk "app/build/outputs/apk/default/release/f819bv-${{ env.BUILD_DATE }}.apk" 2>/dev/null || echo "移动APK文件失败，可能文件名不匹配。"
+          mv "./app/build/outputs/apk/default/release/"*.apk "./app/build/outputs/apk/default/release/f819bv-${{ env.BUILD_DATE }}.apk" 2>/dev/null || echo "移动APK文件失败，可能文件名不匹配。"
  
       - name: Create github release & upload apk
         uses: softprops/action-gh-release@master
