@@ -210,14 +210,14 @@ jobs:
       with:
         name: media3-av1-decoder
         path: |
-          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/buildout/outputs/aar/*
-        retention-days: 30
+          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/buildout/outputs/aar/lib-decoder-av1-release.aar
+        retention-days: 1
         
     - name: Create github release & upload apk
       uses: softprops/action-gh-release@master
       with:
         tag_name: ${{env.BV_DATE}}-av1lib
         files: |
-          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/buildout/outputs/aar/*
+          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/buildout/outputs/aar/lib-decoder-av1-release.aar
         draft: false
         prerelease: false
