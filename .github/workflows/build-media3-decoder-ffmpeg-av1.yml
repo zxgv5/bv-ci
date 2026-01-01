@@ -1,0 +1,327 @@
+name: build-media3-decoder-ffmpeg-av1
+
+on:
+  workflow_dispatch:  # 允许手动触发
+
+env:
+  # 配置版本变量
+  ANDROID_NDK_VERSION: '26.1.10909125'  # 使用README推荐的r26b
+  FFMPEG_VERSION: '6.0'  # 使用FFmpeg 6.0
+  ANDROID_ABI: '21'      # 最小API级别
+  BUILD_TYPE: 'Release'
+  HOST_PLATFORM: 'linux-x86_64'  # GitHub Actions运行器平台
+  
+  # 解码器配置
+  ENABLED_DECODERS: 'vorbis opus flac aac mp3'  # 启用的FFmpeg解码器
+
+jobs:
+  build-extensions:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout actions repository
+      uses: actions/checkout@main
+      
+    - name: Initialization values
+      run: |
+        echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
+          
+    - name: Setup jdk 17
+      uses: actions/setup-java@main
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+        
+    - name: Setup android sdk and ndk
+      uses: android-actions/setup-android@main
+      with:
+        ndk-version: ${{ env.ANDROID_NDK_VERSION }}
+        
+    - name: Clone androidx media repository
+      id: clone-media
+      run: |
+        echo "Cloning AndroidX Media repository..."
+        git clone --depth 1 https://github.com/androidx/media.git android-media
+        cd android-media
+        echo "MEDIA_PATH=$(pwd)" >> $GITHUB_ENV
+        
+        # 设置模块路径（与README中的说明一致）
+        echo "AV1_MODULE_PATH=$(pwd)/libraries/decoder_av1/src/main" >> $GITHUB_ENV
+        echo "FFMPEG_MODULE_PATH=$(pwd)/libraries/decoder_ffmpeg/src/main" >> $GITHUB_ENV
+        
+    - name: Install build dependencies
+      run: |
+        echo "Installing build dependencies..."
+        
+        # 安装构建工具
+        sudo apt-get update
+        sudo apt-get install -y \
+          meson \
+          ninja-build \
+          nasm \
+          cmake \
+          pkg-config \
+          libtool \
+          automake \
+          autoconf \
+          wget \
+          unzip
+        
+        # 验证安装的工具版本
+        echo "=== Installed Tool Versions ==="
+        meson --version
+        ninja --version
+        nasm -v
+        cmake --version
+        
+    - name: Build av1 extension (dav1d)
+      id: build-av1
+      run: |
+        set -e
+        cd $AV1_MODULE_PATH/jni
+        
+        echo "=== Step 1: Clone cpu_features ==="
+        if [ ! -d "cpu_features" ]; then
+          git clone https://github.com/google/cpu_features
+        fi
+        
+        echo "=== Step 2: Clone dav1d ==="
+        if [ ! -d "dav1d" ]; then
+          git clone https://code.videolan.org/videolan/dav1d.git
+        else
+          cd dav1d
+          git pull
+          cd ..
+        fi
+        
+        echo "=== Step 3: Set NDK path ==="
+        # 查找NDK路径
+        if [ -n "$ANDROID_HOME" ]; then
+          NDK_PATH="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+        elif [ -n "$ANDROID_NDK_HOME" ]; then
+          NDK_PATH="$ANDROID_NDK_HOME"
+        else
+          echo "ERROR: NDK not found!"
+          exit 1
+        fi
+        
+        echo "NDK_PATH: $NDK_PATH"
+        
+        echo "=== Step 4: Make build script executable ==="
+        chmod +x build_dav1d.sh
+        
+        echo "=== Step 5: Build dav1d ==="
+        ./build_dav1d.sh \
+          "$AV1_MODULE_PATH" \
+          "$NDK_PATH" \
+          "$HOST_PLATFORM"
+        
+        echo "=== Step 6: Verify dav1d build ==="
+        if [ -d "dav1d" ]; then
+          echo "✓ dav1d library built successfully"
+          # 检查是否生成了必要的库文件
+          find . -name "*.a" | head -5
+        else
+          echo "✗ dav1d build failed"
+          exit 1
+        fi
+        
+    - name: Build ffmpeg extension
+      id: build-ffmpeg
+      run: |
+        set -e
+        cd $FFMPEG_MODULE_PATH/jni
+        
+        echo "=== Step 1: Clone FFmpeg ==="
+        FFMPEG_SRC="ffmpeg"
+        if [ ! -d "$FFMPEG_SRC" ]; then
+          echo "Cloning FFmpeg $FFMPEG_VERSION..."
+          git clone --depth 1 git://source.ffmpeg.org/ffmpeg $FFMPEG_SRC
+          cd $FFMPEG_SRC
+          git checkout release/$FFMPEG_VERSION
+          cd ..
+        else
+          echo "FFmpeg already exists, updating..."
+          cd $FFMPEG_SRC
+          git fetch origin release/$FFMPEG_VERSION
+          git checkout release/$FFMPEG_VERSION
+          cd ..
+        fi
+        
+        echo "=== Step 2: Set NDK path ==="
+        if [ -n "$ANDROID_HOME" ]; then
+          NDK_PATH="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
+        elif [ -n "$ANDROID_NDK_HOME" ]; then
+          NDK_PATH="$ANDROID_NDK_HOME"
+        else
+          echo "ERROR: NDK not found!"
+          exit 1
+        fi
+        
+        echo "NDK_PATH: $NDK_PATH"
+        
+        echo "=== Step 3: Make build script executable ==="
+        chmod +x build_ffmpeg.sh
+        
+        echo "=== Step 4: Build FFmpeg ==="
+        # 将解码器字符串转换为数组
+        IFS=' ' read -ra DECODER_ARRAY <<< "$ENABLED_DECODERS"
+        
+        echo "Building FFmpeg with decoders: ${DECODER_ARRAY[@]}"
+        
+        ./build_ffmpeg.sh \
+          "$FFMPEG_MODULE_PATH" \
+          "$NDK_PATH" \
+          "$HOST_PLATFORM" \
+          "$ANDROID_ABI" \
+          "${DECODER_ARRAY[@]}"
+        
+        echo "=== Step 5: Verify FFmpeg build ==="
+        if [ -d "ffmpeg" ]; then
+          echo "✓ FFmpeg library built successfully"
+          # 检查FFmpeg库文件
+          find . -name "*.a" | head -10
+        else
+          echo "✗ FFmpeg build failed"
+          exit 1
+        fi
+        
+    - name: Build aar files with gradle
+      id: build-aar
+      run: |
+        set -e
+        cd $MEDIA_PATH
+        
+        echo "=== Step 1: Sync Gradle ==="
+        ./gradlew :media3-decoder-av1:assemble$BUILD_TYPE --dry-run
+        
+        echo "=== Step 2: Build AV1 AAR ==="
+        ./gradlew :media3-decoder-av1:assemble$BUILD_TYPE \
+          -Pandroidx.enableComposeCompilerReports=true
+        
+        echo "=== Step 3: Build FFmpeg AAR ==="
+        ./gradlew :media3-decoder-ffmpeg:assemble$BUILD_TYPE \
+          -Pandroidx.enableComposeCompilerReports=true
+        
+        echo "=== Step 4: Verify AAR files ==="
+        echo "Checking for generated AAR files..."
+        
+        AV1_AAR_PATH="libraries/decoder_av1/build/outputs/aar"
+        FFMPEG_AAR_PATH="libraries/decoder_ffmpeg/build/outputs/aar"
+        
+        if [ -f "$AV1_AAR_PATH/decoder_av1-$BUILD_TYPE.aar" ]; then
+          echo "✓ AV1 AAR found: $AV1_AAR_PATH/decoder_av1-$BUILD_TYPE.aar"
+          ls -lh "$AV1_AAR_PATH/"
+        else
+          echo "✗ AV1 AAR not found"
+          # 尝试查找任何AAR文件
+          find "$AV1_AAR_PATH" -name "*.aar" 2>/dev/null || true
+        fi
+        
+        if [ -f "$FFMPEG_AAR_PATH/decoder_ffmpeg-$BUILD_TYPE.aar" ]; then
+          echo "✓ FFmpeg AAR found: $FFMPEG_AAR_PATH/decoder_ffmpeg-$BUILD_TYPE.aar"
+          ls -lh "$FFMPEG_AAR_PATH/"
+        else
+          echo "✗ FFmpeg AAR not found"
+          # 尝试查找任何AAR文件
+          find "$FFMPEG_AAR_PATH" -name "*.aar" 2>/dev/null || true
+        fi
+        
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@main
+      with:
+        name: media3-extensions-aar
+        path: |
+          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/build/outputs/aar/*.aar
+          ${{ env.MEDIA_PATH }}/libraries/decoder_ffmpeg/build/outputs/aar/*.aar
+        retention-days: 30
+        if-no-files-found: error
+        
+    - name: Create github release & upload apk
+      uses: softprops/action-gh-release@master
+      with:
+        tag_name: ${{ env.BUILD_DATE }}-media3-decoder
+        files: |
+          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/build/outputs/aar/*.aar
+          ${{ env.MEDIA_PATH }}/libraries/decoder_ffmpeg/build/outputs/aar/*.aar
+        draft: false
+        prerelease: false
+          
+    - name: Create build summary
+      if: always()
+      run: |
+        echo "# Media3 Extensions Build Report" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Build Information" >> $GITHUB_STEP_SUMMARY
+        echo "- **Build Date**: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" >> $GITHUB_STEP_SUMMARY
+        echo "- **NDK Version**: ${{ env.ANDROID_NDK_VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **FFmpeg Version**: ${{ env.FFMPEG_VERSION }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Android ABI**: ${{ env.ANDROID_ABI }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Enabled Decoders**: ${{ env.ENABLED_DECODERS }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "## Build Status" >> $GITHUB_STEP_SUMMARY
+        
+        # 检查各步骤状态
+        echo "| Step | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+        
+        if [ "${{ steps.build-av1.outcome }}" = "success" ]; then
+          echo "| AV1 Library Build | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| AV1 Library Build | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ steps.build-ffmpeg.outcome }}" = "success" ]; then
+          echo "| FFmpeg Library Build | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| FFmpeg Library Build | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        if [ "${{ steps.build-aar.outcome }}" = "success" ]; then
+          echo "| AAR Generation | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| AAR Generation | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Generated Artifacts" >> $GITHUB_STEP_SUMMARY
+        
+        # 列出生成的AAR文件
+        MEDIA_PATH="${{ env.MEDIA_PATH }}"
+        
+        echo "### AV1 Extension" >> $GITHUB_STEP_SUMMARY
+        if [ -d "$MEDIA_PATH/libraries/decoder_av1/build/outputs/aar" ]; then
+          for aar in "$MEDIA_PATH"/libraries/decoder_av1/build/outputs/aar/*.aar; do
+            if [ -f "$aar" ]; then
+              filename=$(basename "$aar")
+              size=$(ls -lh "$aar" | awk '{print $5}')
+              echo "- **$filename** ($size)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "No AAR files found for AV1 extension." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### FFmpeg Extension" >> $GITHUB_STEP_SUMMARY
+        if [ -d "$MEDIA_PATH/libraries/decoder_ffmpeg/build/outputs/aar" ]; then
+          for aar in "$MEDIA_PATH"/libraries/decoder_ffmpeg/build/outputs/aar/*.aar; do
+            if [ -f "$aar" ]; then
+              filename=$(basename "$aar")
+              size=$(ls -lh "$aar" | awk '{print $5}')
+              echo "- **$filename** ($size)" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+        else
+          echo "No AAR files found for FFmpeg extension." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "1. Download the AAR artifacts from the Artifacts section above" >> $GITHUB_STEP_SUMMARY
+        echo "2. Add the AAR files to your Android project's `libs` directory" >> $GITHUB_STEP_SUMMARY
+        echo "3. Update your `build.gradle` to include the AAR dependencies" >> $GITHUB_STEP_SUMMARY
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "*Build completed with status: ${{ job.status }}*" >> $GITHUB_STEP_SUMMARY
