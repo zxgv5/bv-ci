@@ -228,7 +228,7 @@ jobs:
     - name: Create github release & upload apk
       uses: softprops/action-gh-release@master
       with:
-        tag_name: tag_name: ${{env.BV_DATE}}-av1lib
+        tag_name: ${{env.BV_DATE}}-av1lib
         files: |
           ${{ env.MEDIA_PATH }}/libraries/decoder_av1/build/outputs/aar/*.aar
         draft: false
