@@ -57,7 +57,7 @@ jobs:
  
       - name: Initialization values
         run: |
-          echo "BV_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
+          echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
       - name: Set up jdk 21
         uses: actions/setup-java@main
@@ -128,7 +128,7 @@ jobs:
       - name: Create github release
         uses: softprops/action-gh-release@master
         with:
-          tag_name: ${{env.BV_DATE}}-ffmpeglib
+          tag_name: ${{env.BUILD_DATE}}-ffmpeglib
           # 要附加到此次发布的文件列表
           files: |
             media/libraries/decoder_ffmpeg/buildout/outputs/aar/*
