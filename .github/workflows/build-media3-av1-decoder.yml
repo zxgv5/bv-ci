@@ -1,223 +1,180 @@
 name: build-media3-av1-decoder
 
 on:
-  workflow_dispatch:  # 允许手动触发
+  workflow_dispatch:
 
 env:
-  # 配置版本变量
-  ANDROID_NDK_VERSION: '27.1.11718014'
-  ANDROID_ABI: '27'
-  HOST_PLATFORM: 'linux-x86_64'  # GitHub Actions运行器平台
+  # ANDROID_ABI在build_dav1d.sh使用了21的硬编码(-android21)，不用再传此参数
+  ANDROID_NDK: 'r29'
+  HOST_PLATFORM: 'linux-x86_64'
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - name: Checkout actions repository
-      uses: actions/checkout@main
+      - name: Clean runner environment
+        run: |
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.android/build-cache/
+    
+      - name: Checkout repo
+        uses: actions/checkout@main
       
-    - name: Initialization values
-      run: |
-        echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
+      - name: Initialization values
+        run: |
+          echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
           
-    - name: Setup jdk 17
-      uses: actions/setup-java@main
-      with:
-        distribution: 'temurin'
-        java-version: '17'
+      - name: Setup jdk 17
+        uses: actions/setup-java@main
+        with:
+          distribution: 'temurin'
+          java-version: '17'
         
-    - name: Setup android sdk and ndk
-      uses: android-actions/setup-android@main
-      with:
-        ndk-version: ${{ env.ANDROID_NDK_VERSION }}
-        
-    - name: Clone androidx media repository
-      id: clone-media
-      run: |
-        echo "Cloning AndroidX Media repository..."
-        git clone --branch release --depth 1 https://github.com/androidx/media.git android-media
-        # 该仓库的main分支为开发版，更新很快
-        # git clone --branch main --depth 1 https://github.com/androidx/media.git android-media
-        cd android-media
-        echo "MEDIA_PATH=$(pwd)" >> $GITHUB_ENV
-        
-        # 设置模块路径（与README中的说明一致）
-        echo "AV1_MODULE_PATH=$(pwd)/libraries/decoder_av1/src/main" >> $GITHUB_ENV
-        
-    - name: Install build dependencies
-      run: |
-        echo "Installing build dependencies..."
-        
-        # 安装构建工具
-        sudo apt-get update
-        sudo apt-get install -y \
-          meson \
-          ninja-build \
-          nasm \
-          cmake \
-          pkg-config \
-          libtool \
-          automake \
-          autoconf \
-          wget \
-          unzip
-        
-        # 验证安装的工具版本
-        echo "=== Installed Tool Versions ==="
-        meson --version
-        ninja --version
-        nasm -v
-        cmake --version
-        
-    - name: Build av1 jni
-      id: build-av1
-      run: |
-        set -e
-        cd $AV1_MODULE_PATH/jni
-        
-        echo "=== Step 1: Clone cpu_features ==="
-        if [ ! -d "cpu_features" ]; then
-          git clone https://github.com/google/cpu_features
-        fi
-        
-        echo "=== Step 2: Clone dav1d ==="
-        if [ ! -d "dav1d" ]; then
-          git clone https://code.videolan.org/videolan/dav1d.git
-        else
-          cd dav1d
-          git pull
-          cd ..
-        fi
-        
-        echo "=== Step 3: 验证 NDK 路径 ==="
-        # 优先使用 ANDROID_NDK_ROOT 环境变量
-        if [ -n "$ANDROID_NDK_ROOT" ]; then
-          NDK_PATH="$ANDROID_NDK_ROOT"
-        elif [ -n "$ANDROID_NDK_HOME" ]; then
-          NDK_PATH="$ANDROID_NDK_HOME"
-        elif [ -n "$ANDROID_HOME" ]; then
-          # 检查多种可能的 NDK 路径格式
-          if [ -d "$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" ]; then
-            NDK_PATH="$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION"
-          elif [ -d "$ANDROID_HOME/ndk-bundle" ]; then
-            NDK_PATH="$ANDROID_HOME/ndk-bundle"
+      - name: Setup android ndk
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          wget -q https://dl.google.com/android/repository/android-ndk-${{ env.ANDROID_NDK }}-linux.zip
+          unzip android-ndk-${{ env.ANDROID_NDK }}-linux.zip &>/dev/null
+          mv android-ndk-${{ env.ANDROID_NDK }} android-ndk
+          rm -rf android-ndk-${{ env.ANDROID_NDK }}-linux.zip
+          
+          # 验证 NDK 结构（根据 build_dav1d.sh 的检查逻辑）
+          echo "Checking NDK structure..."
+          if [ -d "android-ndk/toolchains/llvm/prebuilt/linux-x86_64/bin" ]; then
+            echo "✓ NDK structure is correct"
           else
-            # 尝试查找任何 NDK 目录
-            NDK_PATH=$(find $ANDROID_HOME -name "ndk*" -type d | head -1)
-            if [ -z "$NDK_PATH" ]; then
-              echo "ERROR: NDK not found!"
-              echo "Available directories in $ANDROID_HOME:"
-              ls -la $ANDROID_HOME/
-              exit 1
-            fi
+            echo "✗ NDK structure mismatch - expected llvm toolchain in linux-x86_64"
+            ls -la android-ndk/toolchains/llvm/prebuilt/
+            exit 1
           fi
-        else
-          echo "ERROR: ANDROID_HOME not set!"
-          exit 1
-        fi
+          
+      - name: Setup ninja
+        uses: seanmiddleditch/gha-setup-ninja@master
         
-        echo "NDK_PATH: $NDK_PATH"
-        echo "Checking NDK directory structure..."
-        if [ -d "$NDK_PATH" ]; then
-          echo "NDK directory exists"
-          ls -la $NDK_PATH/ | head -10
-        else
-          echo "ERROR: NDK directory does not exist!"
-          exit 1
-        fi
+      - name: Install build dependencies
+        run: |
+          echo "Installing build dependencies..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            meson \
+            ninja-build \
+            nasm \
+            cmake \
+            pkg-config \
+            libtool \
+            automake \
+            autoconf
+            
+          # 验证版本（按照 README 要求）
+          echo "=== Checking versions ==="
+          meson --version | head -1
+          ninja --version | head -1
+          nasm -v | head -1
+          cmake --version | head -1
         
-        echo "=== Step 4: 检查必要的 NDK 组件 ==="
-        # 检查是否有 toolchains 目录
-        if [ ! -d "$NDK_PATH/toolchains" ]; then
-          echo "ERROR: NDK toolchains directory not found!"
-          echo "This might be an incomplete NDK installation"
-          exit 1
-        fi
-        
-        echo "=== Step 5: 设置正确的 HOST_PLATFORM ==="
-        # 根据实际系统设置 HOST_PLATFORM
-        HOST_PLATFORM=${{ env.HOST_PLATFORM }}
-        echo "Using HOST_PLATFORM: $HOST_PLATFORM"
-        
-        echo "=== Step 6: 设置正确的 ANDROID_ABI ==="
-        ANDROID_ABI=${{ env.ANDROID_ABI }}
-        echo "Using ANDROID_ABI: $ANDROID_ABI"
-        
-        echo "=== Step 7: 确保构建脚本可执行 ==="
-        if [ -f "build_dav1d.sh" ]; then
+      - name: Clone androidx media repository
+        run: |
+          cd "$GITHUB_WORKSPACE"
+          git clone https://github.com/androidx/media -b release --depth=1
+          
+      - name: Build dav1d native libraries
+        run: |
+          AV1_MODULE_PATH="$GITHUB_WORKSPACE"/media/libraries/decoder_av1/src/main
+          NDK_PATH="$GITHUB_WORKSPACE"/android-ndk
+          HOST_PLATFORM="${{ env.HOST_PLATFORM }}"
+          
+          echo "Using NDK_PATH: $NDK_PATH"
+          echo "Using HOST_PLATFORM: $HOST_PLATFORM"
+          
+          # 检查目标目录是否存在
+          if [ ! -d "${AV1_MODULE_PATH}/jni" ]; then
+            echo "Creating jni directory..."
+            mkdir -p "${AV1_MODULE_PATH}/jni"
+          fi
+          
+          cd "${AV1_MODULE_PATH}/jni"
+          
+          # 克隆 cpu_features（按 README 要求）
+          if [ ! -d "cpu_features" ]; then
+            echo "Cloning cpu_features..."
+            git clone https://github.com/google/cpu_features --depth=1
+          else
+            echo "cpu_features already exists"
+          fi
+          
+          # 克隆 dav1d（按 README 要求）
+          if [ ! -d "dav1d" ]; then
+            echo "Cloning dav1d..."
+            git clone https://code.videolan.org/videolan/dav1d.git --depth=1
+          else
+            echo "dav1d already exists"
+          fi
+          
+          # 确保构建脚本可执行
+          if [ ! -f "build_dav1d.sh" ]; then
+            echo "Error: build_dav1d.sh not found in $(pwd)"
+            ls -la
+            exit 1
+          fi
+          
           chmod +x build_dav1d.sh
           
-          # 检查脚本内容
-          echo "=== build_dav1d.sh 脚本内容预览 ==="
-          head -50 build_dav1d.sh
-        else
-          echo "ERROR: build_dav1d.sh not found!"
-          ls -la
-          exit 1
-        fi
-        
-        echo "=== Step 8: 构建 dav1d ==="
-        # 使用绝对路径和调试输出
-        echo "Running build_dav1d.sh with:"
-        echo "  AV1_MODULE_PATH: $AV1_MODULE_PATH"
-        echo "  NDK_PATH: $NDK_PATH"
-        echo "  HOST_PLATFORM: $HOST_PLATFORM"
-        echo "  ANDROID_ABI: $ANDROID_ABI"
-        
-        # 设置环境变量供脚本使用
-        export AV1_MODULE_PATH
-        export NDK_PATH
-        export HOST_PLATFORM
-        export ANDROID_ABI
-
-        # 运行构建脚本，增加详细输出
-        bash -x ./build_dav1d.sh "$AV1_MODULE_PATH" "$NDK_PATH" "$HOST_PLATFORM" "$ANDROID_ABI"
-        
-        echo "=== Step 9: 验证 dav1d 构建 ==="
-        if [ -d "dav1d" ]; then
-          echo "✓ dav1d 源代码目录存在"
-          # 检查构建结果
-          echo "检查生成的静态库文件..."
-          find dav1d -name "*.a" -type f | head -10
+          # 清理之前构建的库（脚本会执行，这里提前清理确保）
+          echo "Cleaning previous builds..."
+          rm -rf nativelib
           
-          # 检查构建输出目录
-          if [ -d "build" ]; then
-            echo "构建输出目录:"
-            ls -la build/
+          # 按照 README 中的命令构建（3个参数）
+          echo "Building dav1d for all architectures..."
+          ./build_dav1d.sh "${AV1_MODULE_PATH}" "${NDK_PATH}" "${HOST_PLATFORM}"
+          
+          # 验证构建结果
+          echo "Checking build results..."
+          if [ -d "nativelib" ]; then
+            echo "✓ nativelib directory created successfully"
+            echo "Generated libraries per architecture:"
+            find nativelib -name "*.a" -type f | while read lib; do
+              echo "  - $lib"
+              file "$lib"
+            done
+          else
+            echo "✗ nativelib directory not created - build failed"
+            exit 1
           fi
           
-          echo "✓ dav1d 库构建成功"
-        else
-          echo "✗ dav1d 目录不存在，构建可能失败"
-          exit 1
-        fi
-        
-    - name: Build aar files with gradle
-      id: build-aar
-      run: |
-        set -e
-        cd $MEDIA_PATH
-        
-        echo "=== Step 1: Sync Gradle ==="
-        ./gradlew :lib-decoder-av1:assembleRelease --dry-run
-        
-        echo "=== Step 2: Build AV1 AAR ==="
-        ./gradlew :lib-decoder-av1:assembleRelease \
-          -Pandroidx.enableComposeCompilerReports=true
-        
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@main
-      with:
-        name: media3-av1-decoder
-        path: |
-          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/buildout/outputs/aar/lib-decoder-av1-release.aar
-        retention-days: 1
-        
-    - name: Create github release & upload apk
-      uses: softprops/action-gh-release@master
-      with:
-        tag_name: ${{env.BUILD_DATE}}-av1lib
-        files: |
-          ${{ env.MEDIA_PATH }}/libraries/decoder_av1/buildout/outputs/aar/lib-decoder-av1-release.aar
-        draft: false
-        prerelease: false
+          # 检查 dav1d 目录是否存在（build.gradle 检查这个条件）
+          if [ -d "dav1d" ]; then
+            echo "✓ dav1d directory exists - CMake build will proceed"
+          else
+            echo "✗ dav1d directory not found"
+            exit 1
+          fi
+ 
+      - name: Build AV1 decoder aar
+        run: |
+          cd "$GITHUB_WORKSPACE"/media
+          
+          # 清理之前的构建
+          ./gradlew clean
+          
+          # 构建 release AAR
+          ./gradlew lib-decoder-av1:assembleRelease --no-daemon --stacktrace
+          
+          # 验证 AAR 文件是否存在
+          AAR_PATH="libraries/decoder_av1/buildout/outputs/aar"
+          if [ -d "$AAR_PATH" ]; then
+            echo "Generated AAR files:"
+            ls -la "$AAR_PATH"/
+          else
+            echo "Error: AAR output directory not found"
+            ls -la libraries/decoder_av1/build/
+            exit 1
+          fi
+          
+      - name: Create github release
+        uses: softprops/action-gh-release@main
+        with:
+          tag_name: ${{env.BUILD_DATE}}-av1lib
+          files: |
+            media/libraries/decoder_av1/buildout/outputs/aar/*
+          draft: false
+          prerelease: false
