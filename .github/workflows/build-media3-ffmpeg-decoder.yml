@@ -136,3 +136,56 @@ jobs:
           draft: false
           # 是否为预发布版本
           prerelease: false
+          
+      - name: Push ffmpeg aar to bv-libs repository
+        env:
+          TARGET_REPO: zxgv5/bv-libs
+        run: |
+          # 设置 Git 配置
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+          
+          # 克隆目标仓库
+          cd "$GITHUB_WORKSPACE"
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ env.TARGET_REPO }}.git target-repo
+          cd target-repo
+          
+          # 复制新的 AAR 文件到目标位置
+          SOURCE_AAR="$GITHUB_WORKSPACE/media/libraries/decoder_ffmpeg/buildout/outputs/aar/lib-decoder-ffmpeg-release.aar"
+          TARGET_DIR="ffmpegDecoder"
+          
+          if [ -f "$SOURCE_AAR" ]; then
+            echo "Found AAR file: $SOURCE_AAR"
+            
+            # 确保目标目录存在
+            mkdir -p "$TARGET_DIR"
+            
+            # 备份旧文件（可选）
+            if [ -f "$TARGET_DIR/lib-decoder-ffmpeg-release.aar" ]; then
+              TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+              cp "$TARGET_DIR/lib-decoder-ffmpeg-release.aar" "$TARGET_DIR/lib-decoder-ffmpeg-release_${TIMESTAMP}.aar.backup"
+            fi
+            
+            # 复制新文件
+            cp "$SOURCE_AAR" "$TARGET_DIR/"
+            
+            # 提交更改
+            git add "$TARGET_DIR/lib-decoder-ffmpeg-release.aar"
+            
+            # 检查是否有更改
+            if git diff --cached --quiet; then
+              echo "No changes to commit."
+            else
+              git commit -m "Update FFmpeg decoder AAR - ${{ env.BUILD_DATE }}"
+              git push origin main
+              echo "Successfully pushed FFmpeg decoder AAR to ${{ env.TARGET_REPO }}"
+            fi
+          else
+            echo "Error: AAR file not found at $SOURCE_AAR"
+            # 尝试找到实际的 AAR 文件
+            echo "Searching for AAR files..."
+            find "$GITHUB_WORKSPACE/media/libraries/decoder_ffmpeg" -name "*.aar" -type f | while read file; do
+              echo "Found: $file"
+            done
+            exit 1
+          fi
