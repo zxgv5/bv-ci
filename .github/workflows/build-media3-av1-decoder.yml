@@ -179,51 +179,111 @@ jobs:
           draft: false
           prerelease: false
 
+      # 使用SSH Deploy Key的方式来实现对bv-libs的推送
+      # 生成ED25519密钥对（更安全，推荐）
+      # ssh-keygen -t ed25519 -C "github-actions@github.com" -f deploy_key
+      # 这将在当前目录生成私钥deploy_key和公钥deploy_key.pub
+      
+      # 将公钥添加到目标仓库的Deploy Keys:
+      # zxgv5/bv-libs → "Settings" → "Deploy keys" → "Add deploy key"
+      # 填写：
+      # Title: github-actions-av1-ffmpeg-deploy
+      # Key: 粘贴 deploy_key.pub 内容
+      # 重要： 一定要勾选 "Allow write access"
+      # 然后点击 "Add key"
+      
+      # 将私钥添加到源仓库的Secrets：
+      # zxgv5/android-ci → "Settings" → "Secrets and variables" → "Actions" → "New repository secret"
+      # 填写：
+      # Name: BV_LIBS_DEPLOY_KEY
+      # Secret: 粘贴 deploy_key 文件的完整内容（包括 -----BEGIN OPENSSH PRIVATE KEY----- 和 -----END OPENSSH PRIVATE KEY-----）
+      # 点击 "Add secret"
+      
       - name: Push av1 aar to bv-libs repository
         env:
-          TARGET_REPO: zxgv5/bv-libs
+          TARGET_REPO: "git@github.com:zxgv5/bv-libs.git"
         run: |
+          # 设置 SSH 密钥和配置
+          echo "Setting up SSH configuration..."
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          
+          # 写入私钥
+          echo "${{ secrets.BV_LIBS_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          
+          # 配置 SSH 不验证主机（可选，简化配置）
+          echo "Host github.com" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+          echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+          chmod 600 ~/.ssh/config
+          
+          # 或者使用 ssh-keyscan 添加已知主机（更安全）
+          # ssh-keyscan github.com >> ~/.ssh/known_hosts
+          # chmod 644 ~/.ssh/known_hosts
+          
+          # 测试 SSH 连接
+          echo "Testing SSH connection to GitHub..."
+          ssh -T git@github.com 2>&1 | grep -v "successfully authenticated" || true
+          
           # 设置 Git 配置
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
+          git config --global init.defaultBranch main
           
-          # 克隆目标仓库
+          # 克隆目标仓库（使用 SSH）
           cd "$GITHUB_WORKSPACE"
-          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ env.TARGET_REPO }}.git target-repo
+          echo "Cloning target repository: ${{ env.TARGET_REPO }}"
+          git clone ${{ env.TARGET_REPO }} target-repo
           cd target-repo
+          
+          # 确保在 main 分支
+          git checkout main
           
           # 复制新的 AAR 文件到目标位置
           SOURCE_AAR="$GITHUB_WORKSPACE/media/libraries/decoder_av1/buildout/outputs/aar/lib-decoder-av1-release.aar"
           TARGET_DIR="av1Decoder"
           
+          # 检查 AAR 文件是否存在
           if [ -f "$SOURCE_AAR" ]; then
-            echo "Found AAR file: $SOURCE_AAR"
+            echo "✓ Found AAR file: $SOURCE_AAR"
             
             # 确保目标目录存在
             mkdir -p "$TARGET_DIR"
             
             # 备份旧文件（可选）
-            if [ -f "$TARGET_DIR/lib-decoder-av1-release.aar" ]; then
-              TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-              cp "$TARGET_DIR/lib-decoder-av1-release.aar" "$TARGET_DIR/lib-decoder-av1-release_${TIMESTAMP}.aar.backup"
-            fi
+            # if [ -f "$TARGET_DIR/lib-decoder-av1-release.aar" ]; then
+            #   echo "Backing up old AAR file..."
+            #   TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
+            #   cp "$TARGET_DIR/lib-decoder-av1-release.aar" "$TARGET_DIR/lib-decoder-av1-release_${TIMESTAMP}.aar.backup"
+            # fi
             
             # 复制新文件
-            cp "$SOURCE_AAR" "$TARGET_DIR/"
+            echo "Copying new AAR file..."
+            cp -v "$SOURCE_AAR" "$TARGET_DIR/"
             
             # 提交更改
+            echo "Committing changes..."
             git add "$TARGET_DIR/lib-decoder-av1-release.aar"
             
             # 检查是否有更改
             if git diff --cached --quiet; then
               echo "No changes to commit."
             else
-              git commit -m "Update AV1 decoder AAR - ${{ env.BUILD_DATE }}"
+              git commit -m "Update AV1 decoder AAR - ${{ env.BUILD_DATE }} [CI]"
+              echo "Pushing to remote repository..."
               git push origin main
-              echo "Successfully pushed AV1 decoder AAR to ${{ env.TARGET_REPO }}"
+              echo "✓ Successfully pushed AV1 decoder AAR to ${{ env.TARGET_REPO }}"
             fi
           else
-            echo "Error: AAR file not found at $SOURCE_AAR"
-            ls -la "$(dirname "$SOURCE_AAR")"
+            echo "✗ Error: AAR file not found at $SOURCE_AAR"
+            echo "Searching for AAR files..."
+            find "$GITHUB_WORKSPACE/media/libraries/decoder_av1" -name "*.aar" -type f 2>/dev/null | while read file; do
+              echo "  Found: $file"
+            done
             exit 1
           fi
+          
+          # 清理 SSH 密钥（安全考虑）
+          rm -f ~/.ssh/id_ed25519
+          rm -f ~/.ssh/config
