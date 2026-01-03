@@ -34,7 +34,7 @@ jobs:
       - name: Checkout akDanmaku repository
         uses: actions/checkout@main
         with:
-          repository: zxgv5/fantasy-tv
+          repository: zxgv5/fantasy-bv
           ref: develop
           path: akdanmaku-source
           fetch-depth: 0
