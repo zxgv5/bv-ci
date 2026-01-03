@@ -200,7 +200,7 @@ jobs:
           git checkout main
           
           # 复制新的 AAR 文件到目标位置
-          SOURCE_AAR="$GITHUB_WORKSPACE/${{ env.AAR_PATH }}/${{ AAR_NAME }}"
+          SOURCE_AAR="$GITHUB_WORKSPACE/${{ env.AAR_PATH }}/${{ env.AAR_NAME }}"
           TARGET_DIR="ffmpegDecoder"
           
           # 检查 AAR 文件是否存在
@@ -211,10 +211,10 @@ jobs:
             mkdir -p "$TARGET_DIR"
             
             # 备份旧文件（可选）
-            # if [ -f "$TARGET_DIR/${{ AAR_NAME }}" ]; then
+            # if [ -f "$TARGET_DIR/${{ env.AAR_NAME }}" ]; then
             #   echo "Backing up old AAR file..."
             #   TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-            #   cp "$TARGET_DIR/${{ AAR_NAME }}" "$TARGET_DIR/lib-decoder-ffmpeg-release_${TIMESTAMP}.aar.backup"
+            #   cp "$TARGET_DIR/${{ env.AAR_NAME }}" "$TARGET_DIR/lib-decoder-ffmpeg-release_${TIMESTAMP}.aar.backup"
             # fi
             
             # 复制新文件
@@ -223,7 +223,7 @@ jobs:
             
             # 提交更改
             echo "Committing changes..."
-            git add "$TARGET_DIR/${{ AAR_NAME }}"
+            git add "$TARGET_DIR/${{ env.AAR_NAME }}"
             
             # 检查是否有更改
             if git diff --cached --quiet; then

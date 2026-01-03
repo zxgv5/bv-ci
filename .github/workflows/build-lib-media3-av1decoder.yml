@@ -163,10 +163,10 @@ jobs:
           ./gradlew lib-decoder-av1:assembleRelease --no-daemon --stacktrace
           
           # 验证 AAR 文件是否存在
-          AAR_PATH="libraries/decoder_av1/buildout/outputs/aar"
-          if [ -d "$AAR_PATH" ]; then
+          OUT_PATH="libraries/decoder_av1/buildout/outputs/aar"
+          if [ -d "$OUT_PATH" ]; then
             echo "Generated AAR files:"
-            ls -la "$AAR_PATH"/
+            ls -la "$OUT_PATH"/
           else
             echo "Error: AAR output directory not found"
             ls -la libraries/decoder_av1/build/
