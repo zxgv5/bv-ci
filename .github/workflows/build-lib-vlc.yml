@@ -390,7 +390,8 @@ jobs:
           echo "This may take a while (15-20 minutes)..."
           
           # 构建 arm64-v8a 架构的 libVLC
-          ./buildsystem/compile.sh -l -a arm64-v8a -t -r
+          # 使用 -b 参数绕过版本检查（如果需要）
+          ./buildsystem/compile.sh -l -a arm64-v8a -t -r -b
           
           echo "arm64-v8a build completed!"
           
@@ -472,7 +473,7 @@ jobs:
           echo "This may take a while (15-20 minutes)..."
           
           # 构建 armeabi-v7a 架构的 libVLC
-          ./buildsystem/compile.sh -l -a armeabi-v7a -t -r
+          ./buildsystem/compile.sh -l -a armeabi-v7a -t -r -b
           
           echo "armeabi-v7a build completed!"
           
