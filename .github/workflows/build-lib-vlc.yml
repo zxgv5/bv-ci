@@ -5,9 +5,8 @@ on:
   workflow_call:
 
 env:
-  VLC_REPO_URL: 'https://code.videolan.org/videolan/vlc-android.git'
+  VLC_REPO_URL: 'https://github.com/videolan/vlc-android.git'
   VLC_BRANCH: 'master'
-  AAR_PATH: 'build/outputs/aar'
   AAR_NAME: 'libvlc-release.aar'
 
 jobs:
@@ -33,9 +32,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
           
-      - name: Setup android sdk
+      - name: Setup android sdk and ndk
         uses: android-actions/setup-android@v3
-        
+        with:
+          ndk-version: '25.2.9519653'
+          
       - name: Install build dependencies
         run: |
           echo "Installing build dependencies..."
@@ -46,22 +47,23 @@ jobs:
             autopoint \
             cmake \
             gawk \
+            build-essential \
             libtool \
+            libtool-bin \
             m4 \
             patch \
             pkg-config \
+            protobuf-compiler \
             ragel \
             subversion \
             unzip \
             ant \
+            openjdk-8-jre \
+            openjdk-8-jdk \
+            flex \
             python3 \
             python3-pip \
             python3-setuptools \
-            nasm \
-            gperf \
-            bison \
-            flex \
-            lzip \
             wget \
             curl \
             git \
@@ -69,129 +71,142 @@ jobs:
             gcc \
             g++ \
             yasm \
-            protobuf-compiler
+            nasm \
+            gperf \
+            bison \
+            lzip \
+            ninja-build \
+            meson
+            
+          pip3 install meson
             
       - name: Clone vlc android repository
         run: |
           cd "$GITHUB_WORKSPACE"
           echo "Cloning VLC Android repository from ${{ env.VLC_REPO_URL }}"
           git clone --depth 1 --branch ${{ env.VLC_BRANCH }} ${{ env.VLC_REPO_URL }} vlc-android
-          cd vlc-android
           
-          # 初始化子模块
-          echo "Initializing submodules..."
-          git submodule update --init --recursive
+      - name: Setup environment variables
+        run: |
+          cd "$GITHUB_WORKSPACE"/vlc-android
           
-      - name: Build vlc android library
+          # 设置环境变量（根据 compile.sh 的要求）
+          echo "ANDROID_SDK=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          
+          # 创建本地配置文件
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_NDK_ROOT" >> local.properties
+          
+          echo "Environment variables set:"
+          echo "ANDROID_SDK=$ANDROID_HOME"
+          echo "ANDROID_NDK=$ANDROID_NDK_ROOT"
+          
+      - name: Build libvlc for all architectures
         run: |
           cd "$GITHUB_WORKSPACE"/vlc-android
           
           echo "Current directory: $(pwd)"
-          echo "Directory contents:"
+          echo "Directory structure:"
           ls -la
           
-          # 设置环境变量
-          export ANDROID_SDK_ROOT="$ANDROID_HOME"
-          export ANDROID_NDK_HOME="$ANDROID_NDK_ROOT"
+          # 使构建脚本可执行
+          chmod +x compile.sh
+          chmod +x compile-medialibrary.sh
           
-          # 检查是否可以使用编译脚本
-          if [ -f "compile.sh" ]; then
-            echo "Found compile.sh script"
-            chmod +x compile.sh
-            
-            # 编译VLC库（这里可能需要根据实际脚本调整参数）
-            # VLC Android通常使用gradle构建，但也有一些使用compile.sh
-            # 我们先尝试使用Gradle构建
-          else
-            echo "No compile.sh found, using Gradle instead"
-          fi
+          # 根据 README 和 compile.sh，构建 libVLC 使用 -l 参数
+          # 使用 -a all 构建所有架构
+          # 使用 -t 尝试使用预构建的 contribs（加速构建）
+          # 使用 -r 构建 release 版本
           
-          # 检查Gradle wrapper是否存在
-          if [ -f "gradlew" ]; then
-            echo "Found gradlew, making it executable"
-            chmod +x gradlew
-            
-            # 清理项目
-            echo "Cleaning project..."
-            ./gradlew clean
-            
-            # 构建Release版本的AAR
-            echo "Building Release AAR..."
-            ./gradlew :libvlc:assembleRelease --no-daemon --stacktrace
-            
-            # 查找生成的AAR文件
-            echo "Searching for AAR files..."
-            find . -name "*.aar" -type f | head -20
-          else
-            echo "Error: gradlew not found in $(pwd)"
-            echo "Trying alternative build method..."
-            
-            # 尝试使用make构建
-            if [ -f "Makefile" ]; then
-              echo "Found Makefile, trying to build..."
-              make
-            else
-              echo "No build system found!"
-              exit 1
-            fi
-          fi
+          echo "Starting libVLC build..."
+          echo "This may take a while (30+ minutes)..."
           
-      - name: Find and verify aar file
+          # 构建所有架构的 libVLC
+          # 注意：构建过程会下载 VLC 源代码和依赖，需要网络连接
+          ./compile.sh -l -a all -t -r
+          
+          echo "Build completed!"
+          
+      - name: Find and copy generated aar files
         run: |
           cd "$GITHUB_WORKSPACE"/vlc-android
           
-          # 尝试在不同位置查找AAR文件
-          echo "Searching for AAR files in the project..."
+          echo "Searching for generated AAR files..."
           
-          # 可能的AAR文件路径（根据VLC Android项目结构）
+          # 根据项目结构，AAR 文件可能在这些位置
           POSSIBLE_PATHS=(
-            "build/outputs/aar"
+            "libvlcjni/libvlc/build/outputs/aar"
             "libvlc/build/outputs/aar"
-            "application/build/outputs/aar"
-            "."
+            "build/outputs/aar"
           )
           
           AAR_FOUND=false
           
           for path in "${POSSIBLE_PATHS[@]}"; do
             if [ -d "$path" ]; then
-              echo "Checking $path for AAR files..."
+              echo "Checking $path..."
               find "$path" -name "*.aar" -type f 2>/dev/null | while read file; do
                 echo "Found AAR: $file"
-                # 重命名为目标名称
-                cp "$file" "$GITHUB_WORKSPACE/libvlc-release.aar"
-                echo "Copied to: $GITHUB_WORKSPACE/libvlc-release.aar"
-                AAR_FOUND=true
+                
+                # 检查是否是 release 版本
+                if [[ "$file" == *"release"* ]] || [[ "$file" == *"Release"* ]]; then
+                  echo "This appears to be a release AAR: $file"
+                  cp "$file" "$GITHUB_WORKSPACE/libvlc-release.aar"
+                  echo "Copied to: $GITHUB_WORKSPACE/libvlc-release.aar"
+                  AAR_FOUND=true
+                fi
               done
             fi
           done
           
-          # 如果没有找到，尝试直接搜索
+          # 如果没有找到 release AAR，取第一个找到的
           if [ "$AAR_FOUND" = false ]; then
-            echo "Searching recursively for AAR files..."
-            find . -name "*.aar" -type f 2>/dev/null | head -10 | while read file; do
+            echo "No release AAR found, searching for any AAR file..."
+            find . -name "*.aar" -type f 2>/dev/null | head -5 | while read file; do
               echo "Found AAR: $file"
-              cp "$file" "$GITHUB_WORKSPACE/libvlc-release.aar"
-              echo "Copied to: $GITHUB_WORKSPACE/libvlc-release.aar"
-              AAR_FOUND=true
+              if [ ! -f "$GITHUB_WORKSPACE/libvlc-release.aar" ]; then
+                cp "$file" "$GITHUB_WORKSPACE/libvlc-release.aar"
+                echo "Copied to: $GITHUB_WORKSPACE/libvlc-release.aar"
+                AAR_FOUND=true
+              fi
             done
           fi
           
-          if [ "$AAR_FOUND" = false ]; then
-            echo "Error: No AAR file found!"
-            echo "Build artifacts:"
-            find . -name "*.apk" -o -name "*.jar" -o -name "*.so" -type f | head -20
-            exit 1
-          fi
+      - name: Verify aar file
+        run: |
+          cd "$GITHUB_WORKSPACE"
           
-          # 验证AAR文件
-          if [ -f "$GITHUB_WORKSPACE/libvlc-release.aar" ]; then
+          if [ -f "libvlc-release.aar" ]; then
             echo "✓ AAR file found and verified"
-            echo "File size: $(du -h "$GITHUB_WORKSPACE/libvlc-release.aar" | cut -f1)"
-            echo "File info:"
-            file "$GITHUB_WORKSPACE/libvlc-release.aar"
+            echo "File size: $(du -h libvlc-release.aar | cut -f1)"
+            echo "File type:"
+            file libvlc-release.aar
+            
+            # 检查 AAR 文件内容
+            echo "AAR contents:"
+            unzip -l libvlc-release.aar | head -20
+            
+            # 检查是否包含原生库
+            echo "Checking for native libraries..."
+            if unzip -l libvlc-release.aar | grep -q "\.so$"; then
+              echo "✓ AAR contains native libraries (.so files)"
+            else
+              echo "⚠ AAR does not contain native libraries"
+            fi
+            
+            # 检查 AndroidManifest
+            echo "Checking for AndroidManifest..."
+            if unzip -l libvlc-release.aar | grep -q "AndroidManifest.xml"; then
+              echo "✓ AAR contains AndroidManifest.xml"
+            fi
           else
-            echo "✗ AAR file not found at expected location"
+            echo "✗ Error: No AAR file found at $GITHUB_WORKSPACE/libvlc-release.aar"
+            
+            # 输出一些调试信息
+            echo "Listing build artifacts in vlc-android directory:"
+            find "$GITHUB_WORKSPACE/vlc-android" -name "*.aar" -o -name "*.apk" -o -name "*.jar" -type f 2>/dev/null | head -20
+            
             exit 1
           fi
           
@@ -204,87 +219,89 @@ jobs:
           draft: false
           prerelease: false
 
-      - name: Push vlc aar to bv-libs repository
-        env:
-          TARGET_REPO: "git@github.com:zxgv5/bv-libs.git"
-        run: |
-          # 设置 SSH 密钥和配置
-          echo "Setting up SSH configuration..."
-          mkdir -p ~/.ssh
-          chmod 700 ~/.ssh
-          
-          # 写入私钥
-          echo "${{ secrets.BV_LIBS_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          
-          # 配置 SSH 不验证主机
-          echo "Host github.com" >> ~/.ssh/config
-          echo "  StrictHostKeyChecking no" >> ~/.ssh/config
-          echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
-          chmod 600 ~/.ssh/config
-          
-          # 测试 SSH 连接
-          echo "Testing SSH connection to GitHub..."
-          ssh -T git@github.com 2>&1 | grep -v "successfully authenticated" || true
-          
-          # 设置 Git 配置
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
-          git config --global init.defaultBranch main
-          
-          # 克隆目标仓库
-          cd "$GITHUB_WORKSPACE"
-          echo "Cloning target repository: ${{ env.TARGET_REPO }}"
-          git clone ${{ env.TARGET_REPO }} target-repo
-          cd target-repo
-          
-          # 确保在 main 分支
-          git checkout main
-          
-          # 复制新的 AAR 文件到目标位置
-          SOURCE_AAR="$GITHUB_WORKSPACE/libvlc-release.aar"
-          TARGET_DIR="libVLC"
-          
-          # 检查 AAR 文件是否存在
-          if [ -f "$SOURCE_AAR" ]; then
-            echo "✓ Found AAR file: $SOURCE_AAR"
-            
-            # 确保目标目录存在
-            mkdir -p "$TARGET_DIR"
-            
-            # 复制新文件
-            echo "Copying new AAR file..."
-            cp -v "$SOURCE_AAR" "$TARGET_DIR/libvlc-release.aar"
-            
-            # 提交更改
-            echo "Committing changes..."
-            git add "$TARGET_DIR/libvlc-release.aar"
-            
-            # 检查是否有更改
-            if git diff --cached --quiet; then
-              echo "No changes to commit."
-            else
-              git commit -m "Update VLC AAR - ${{ env.BUILD_DATE }} [CI]"
-              echo "Pushing to remote repository..."
-              git push origin main
-              echo "✓ Successfully pushed VLC AAR to ${{ env.TARGET_REPO }}"
-            fi
-          else
-            echo "✗ Error: AAR file not found at $SOURCE_AAR"
-            exit 1
-          fi
-          
-          # 清理 SSH 密钥
-          rm -f ~/.ssh/id_ed25519
-          rm -f ~/.ssh/config
-          
-      # 可选：缓存构建依赖以加速后续构建
-      - name: Cache gradle dependencies
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      # - name: Push vlc aar to bv-libs repository
+      #   env:
+      #     TARGET_REPO: "git@github.com:zxgv5/bv-libs.git"
+      #   run: |
+      #     # 设置 SSH 密钥和配置
+      #     echo "Setting up SSH configuration..."
+      #     mkdir -p ~/.ssh
+      #     chmod 700 ~/.ssh
+      #     
+      #     # 写入私钥
+      #     echo "${{ secrets.BV_LIBS_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+      #     chmod 600 ~/.ssh/id_ed25519
+      #     
+      #     # 配置 SSH 不验证主机
+      #     echo "Host github.com" >> ~/.ssh/config
+      #     echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+      #     echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+      #     chmod 600 ~/.ssh/config
+      #     
+      #     # 测试 SSH 连接
+      #     echo "Testing SSH connection to GitHub..."
+      #     ssh -T git@github.com 2>&1 | grep -v "successfully authenticated" || true
+      #     
+      #     # 设置 Git 配置
+      #     git config --global user.name "GitHub Actions"
+      #     git config --global user.email "actions@github.com"
+      #     git config --global init.defaultBranch main
+      #     
+      #     # 克隆目标仓库
+      #     cd "$GITHUB_WORKSPACE"
+      #     echo "Cloning target repository: ${{ env.TARGET_REPO }}"
+      #     git clone ${{ env.TARGET_REPO }} target-repo
+      #     cd target-repo
+      #     
+      #     # 确保在 main 分支
+      #     git checkout main
+      #     
+      #     # 复制新的 AAR 文件到目标位置
+      #     SOURCE_AAR="$GITHUB_WORKSPACE/libvlc-release.aar"
+      #     TARGET_DIR="libVLC"
+      #     
+      #     # 检查 AAR 文件是否存在
+      #     if [ -f "$SOURCE_AAR" ]; then
+      #       echo "✓ Found AAR file: $SOURCE_AAR"
+      #       
+      #       # 确保目标目录存在
+      #       mkdir -p "$TARGET_DIR"
+      #       
+      #       # 复制新文件
+      #       echo "Copying new AAR file..."
+      #       cp -v "$SOURCE_AAR" "$TARGET_DIR/libvlc-release.aar"
+      #       
+      #       # 提交更改
+      #       echo "Committing changes..."
+      #       git add "$TARGET_DIR/libvlc-release.aar"
+      #       
+      #       # 检查是否有更改
+      #       if git diff --cached --quiet; then
+      #         echo "No changes to commit."
+      #       else
+      #         git commit -m "Update VLC AAR - ${{ env.BUILD_DATE }} [CI]"
+      #         echo "Pushing to remote repository..."
+      #         git push origin main
+      #         echo "✓ Successfully pushed VLC AAR to ${{ env.TARGET_REPO }}"
+      #       fi
+      #     else
+      #       echo "✗ Error: AAR file not found at $SOURCE_AAR"
+      #       exit 1
+      #     fi
+      #     
+      #     # 清理 SSH 密钥
+      #     rm -f ~/.ssh/id_ed25519
+      #     rm -f ~/.ssh/config
+
+      # 可选：缓存构建结果以加速后续构建
+      # - name: Cache build artifacts
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: |
+      #       ~/.gradle/caches
+      #       ~/.gradle/wrapper
+      #       vlc-android/.gradle
+      #       vlc-android/libvlcjni/vlc/contrib
+      #     key: ${{ runner.os }}-vlc-build-${{ hashFiles('vlc-android/compile.sh', 'vlc-android/build.gradle') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-vlc-build-
