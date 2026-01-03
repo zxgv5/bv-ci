@@ -38,14 +38,6 @@ jobs:
           ref: develop
           path: akdanmaku-source
           fetch-depth: 0
-          sparse-checkout: |
-            akDanmaku/
-            gradle/
-            gradlew
-            gradle.properties
-            settings.gradle.kts
-            build.gradle.kts
-          sparse-checkout-cone-mode: false
 
       # 环境变量初始化
       - name: Initialization values
