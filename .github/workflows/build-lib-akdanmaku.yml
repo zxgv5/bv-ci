@@ -99,7 +99,7 @@ jobs:
           
           echo "=== akdanmaku 编译完成 ==="
           echo "查找AAR产物:"
-          AAR_FILE=$(find ${{ AAR_PATH }} -name "*.aar" -type f | head -1)
+          AAR_FILE=$(find ${{ env.AAR_PATH }} -name "*.aar" -type f | head -1)
           if [ -n "$AAR_FILE" ]; then
             echo "找到AAR文件: $AAR_FILE"
             echo "文件大小: $(ls -lh "$AAR_FILE" | awk '{print $5}')"

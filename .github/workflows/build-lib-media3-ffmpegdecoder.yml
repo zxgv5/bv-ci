@@ -127,7 +127,7 @@ jobs:
       #   with:
       #     name: FFmpeg-aar
       #     path: |
-      #       ${{ AAR_PATH }}/*
+      #       ${{ env.AAR_PATH }}/*
       #     compression-level: 9
           
       - name: Create github release
@@ -136,7 +136,7 @@ jobs:
           tag_name: ${{env.BUILD_DATE}}-ffmpeglib
           # 要附加到此次发布的文件列表
           files: |
-            ${{ AAR_PATH }}/*
+            ${{ env.AAR_PATH }}/*
           # 设置为 true 则每次运行覆盖同名草稿，适用于持续集成测试版
           draft: false
           # 是否为预发布版本
@@ -200,7 +200,7 @@ jobs:
           git checkout main
           
           # 复制新的 AAR 文件到目标位置
-          SOURCE_AAR="$GITHUB_WORKSPACE/${{ AAR_PATH }}/${{ AAR_NAME }}"
+          SOURCE_AAR="$GITHUB_WORKSPACE/${{ env.AAR_PATH }}/${{ AAR_NAME }}"
           TARGET_DIR="ffmpegDecoder"
           
           # 检查 AAR 文件是否存在
