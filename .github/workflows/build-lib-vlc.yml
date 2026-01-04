@@ -6,12 +6,11 @@ on:
  
 env:
   VLC_REPO_URL: 'https://github.com/videolan/vlc-android.git'
-  VLC_BRANCH: 'master'
+  VLC_BRANCH: 'libvlc-3.6.5'
   AAR_NAME: 'libvlc-release.aar'
  
 jobs:
   build:
-    timeout-minutes: 360  # 6小时，最大可以设置到360分钟
     runs-on: ubuntu-latest
     
     steps:
@@ -19,14 +18,14 @@ jobs:
         run: |
           rm -rf ~/.gradle/caches/transforms-*
           rm -rf ~/.android/build-cache/
-    
+          
       - name: Checkout repo
         uses: actions/checkout@main
-      
+        
       - name: Initialization values
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
-          
+      
       - name: Setup git config
         run: |
           # 设置 git 用户信息，避免应用补丁时出错
@@ -132,17 +131,6 @@ jobs:
           # 将这些变量导出到后续步骤
           echo "ANDROID_SDK=$ANDROID_HOME" >> $GITHUB_ENV
           echo "ANDROID_NDK=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
-
-      - name: Pre-download missing dependencies
-        run: |
-          mkdir -p ~/.gradle
-          echo "systemProp.http.proxyHost=mirrors.tencentyun.com" >> ~/.gradle/gradle.properties
-          echo "systemProp.https.proxyHost=mirrors.tencentyun.com" >> ~/.gradle/gradle.properties
-          
-          # 使用镜像源下载
-          cd /tmp
-          wget https://mirrors.tencentyun.com/apache/protobuf/protobuf-3.1.0.tar.gz
-          # 将文件复制到正确位置
 
       - name: Build libvlc for arm64-v8a architecture
         run: |
