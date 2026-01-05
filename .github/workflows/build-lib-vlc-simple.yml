@@ -6,7 +6,7 @@ on:
 
 env:
   VLC_REPO_URL: 'https://github.com/videolan/vlc-android.git'
-  VLC_TAG: '3.6.5'  # 修改：使用tag名而不是分支名
+  VLC_TAG: 'libvlc-3.6.5'  # 修改：使用tag名而不是分支名
   AAR_NAME: 'libvlc-release.aar'
 
 jobs:
