@@ -1,121 +1,488 @@
-name: Android CI/CD Pipeline
+name: build-lib-vlc
+ 
 on:
-  pull_request:
-    branches: [main]
-  push:
-    branches: [main]
-
+  workflow_dispatch:
+  workflow_call:
+ 
+env:
+  VLC_REPO_URL: 'https://github.com/videolan/vlc-android.git'
+  VLC_BRANCH: 'libvlc-3.6.5'
+  AAR_NAME: 'libvlc-release.aar'
+  NDK_VERSION: '27.0.12077973'
+  NDK_ZIP_URL: 'https://dl.google.com/android/repository/android-ndk-r27-linux.zip'
+ 
 jobs:
-  # 阶段1: 环境准备与验证
-  setup_env:
+  build:
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4.1.1
-        
-      - name: Setup Java 17
-        uses: actions/setup-java@v4.0.0
-        with:
-          java-version: '17'
-          distribution: 'temurin'
-          cache: 'gradle'
+    permissions:
+      contents: write  # 授予创建Release的权限
       
+    steps:
+      - name: Clean runner environment
+        run: |
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.android/build-cache/
+          rm -rf ~/.gradle/wrapper/dists/
+          echo "Cleaned runner cache directories"
+          
+      - name: Checkout repo
+        uses: actions/checkout@main
+        
+      - name: Initialization values
+        run: |
+          echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
+          echo "Build date set to: ${{ env.BUILD_DATE }}"
+      
+      - name: Setup git config
+        run: |
+          git config --global user.email "ci@github.com"
+          git config --global user.name "GitHub CI"
+          echo "Git user config set successfully"
+          
+      - name: Setup jdk 17
+        uses: actions/setup-java@main
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          
+      - name: Setup android sdk
+        uses: android-actions/setup-android@v3
+        
       - name: Install specific ndk version
         run: |
-          echo "Downloading NDK 25.1.8937393 (VLC-compatible)..."
-          cd $ANDROID_SDK_ROOT
-          wget -q https://dl.google.com/android/repository/android-ndk-r25b-linux.zip
-          unzip -q android-ndk-r25b-linux.zip
-          mv android-ndk-r25b ndk/25.1.8937393
-          echo "ANDROID_NDK_ROOT=$ANDROID_SDK_ROOT/ndk/25.1.8937393" >> $GITHUB_ENV
-          echo "ndkVersion=25.1.8937393" >> $GITHUB_ENV
-      
-      - name: Verify environment
-        run: |
-          echo "Java version: $(java -version 2>&1 | head -n 1)"
-          echo "NDK version: $(ls $ANDROID_NDK_ROOT | grep '25.1.8937393')"
-          echo "Python version: $(python3 --version)"
-
-  # 阶段2: 依赖安装与缓存优化
-  install_deps:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4.1.1
-      
-      - name: Cache Gradle dependencies
-        uses: actions/cache@v3.1.3
-        with:
-          path: ~/.gradle/caches
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
-      
+          echo "Downloading NDK ${{ env.NDK_VERSION }}..."
+          cd /usr/local/lib/android/sdk
+          
+          # 下载并校验NDK（添加超时和重试）
+          if ! wget -q --timeout=30 --tries=3 ${{ env.NDK_ZIP_URL }}; then
+            echo "✗ Failed to download NDK, exiting"
+            exit 1
+          fi
+          
+          # 解压并验证
+          if ! unzip -q android-ndk-r27-linux.zip; then
+            echo "✗ Failed to unzip NDK, exiting"
+            rm -f android-ndk-r27-linux.zip
+            exit 1
+          fi
+          
+          mv android-ndk-r27 ndk/${{ env.NDK_VERSION }}
+          rm -f android-ndk-r27-linux.zip
+          
+          # 验证NDK目录完整性
+          if [ ! -f "ndk/${{ env.NDK_VERSION }}/build/ndk-build" ]; then
+            echo "✗ NDK installation corrupted, ndk-build not found"
+            exit 1
+          fi
+          
+          # 设置环境变量
+          echo "ANDROID_NDK_ROOT=/usr/local/lib/android/sdk/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
+          echo "ANDROID_NDK=/usr/local/lib/android/sdk/ndk/${{ env.NDK_VERSION }}" >> $GITHUB_ENV
+          
+          echo "✓ NDK installed successfully at: $ANDROID_NDK_ROOT"
+          
       - name: Install build dependencies
         run: |
-          echo "Installing Python dependencies..."
-          python3 -m pip install --upgrade pip
-          pip install meson ninja
+          echo "Installing build dependencies..."
+          sudo apt-get update -y || echo "Warning: apt update had errors"
           
-          echo "Setting up Android SDK..."
-          yes | $ANDROID_SDK_ROOT/tools/bin/sdkmanager "build-tools;30.0.3" "platforms;android-30"
-
-  # 阶段3: 构建与测试（核心阶段）
-  build_and_test:
-    runs-on: ubuntu-latest
-    needs: [setup_env, install_deps]
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4.1.1
-      
-      - name: Configure NDK version
+          # 添加Adoptium源以安装OpenJDK 8（Ubuntu 22.04+/24.04+默认无官方源）
+          sudo apt-get install -y apt-transport-https ca-certificates wget
+          wget -qO - https://packages.adoptium.net/artifactory/api/gpg/key/public | sudo gpg --dearmor -o /etc/apt/trusted.gpg.d/adoptium.gpg
+          echo "deb https://packages.adoptium.net/artifactory/deb $(awk -F= '/^VERSION_CODENAME/{print$2}' /etc/os-release) main" | sudo tee /etc/apt/sources.list.d/adoptium.list
+          sudo apt-get update -y
+          
+          # 安装依赖（包含OpenJDK 8）
+          sudo apt-get install -y \
+            autoconf \
+            automake \
+            autopoint \
+            cmake \
+            gawk \
+            build-essential \
+            libtool \
+            libtool-bin \
+            m4 \
+            patch \
+            pkg-config \
+            protobuf-compiler \
+            ragel \
+            subversion \
+            unzip \
+            ant \
+            temurin-8-jre \
+            temurin-8-jdk \
+            flex \
+            python3 \
+            python3-pip \
+            python3-setuptools \
+            wget \
+            curl \
+            git \
+            make \
+            gcc \
+            g++ \
+            yasm \
+            nasm \
+            gperf \
+            bison \
+            lzip \
+            ninja-build \
+            meson \
+            libc6-dev-i386 \
+            gcc-multilib \
+            g++-multilib \
+            rsync
+            
+          # 切换Java版本到8（VLC编译依赖JDK 8）
+          sudo update-alternatives --set java /usr/lib/jvm/temurin-8-jdk-amd64/bin/java
+          sudo update-alternatives --set javac /usr/lib/jvm/temurin-8-jdk-amd64/bin/javac
+          
+          # 验证Java版本
+          java -version
+          javac -version
+          
+          pip3 install --upgrade meson
+          echo "✓ All dependencies installed successfully"
+            
+      - name: Clone vlc android repository
         run: |
-          echo "android.ndkVersion=${{ env.ndkVersion }}" >> gradle.properties
-          echo "ANDROID_NDK_ROOT=${{ env.ANDROID_NDK_ROOT }}" >> $GITHUB_ENV
-      
+          cd "$GITHUB_WORKSPACE"
+          echo "Cloning VLC Android repository from ${{ env.VLC_REPO_URL }} (branch: ${{ env.VLC_BRANCH }})"
+          
+          # 克隆仓库（添加深度和超时）
+          if ! git clone --depth 1 --branch ${{ env.VLC_BRANCH }} --timeout=60 ${{ env.VLC_REPO_URL }} vlc-android; then
+            echo "✗ Failed to clone VLC repository, exiting"
+            exit 1
+          fi
+          
+          cd vlc-android
+          echo "✓ Cloned VLC repository, current commit: $(git rev-parse --short HEAD)"
+          
+      - name: Setup environment variables
+        run: |
+          cd "$GITHUB_WORKSPACE"/vlc-android
+          
+          export ANDROID_SDK="$ANDROID_HOME"
+          export ANDROID_NDK="$ANDROID_NDK_ROOT"
+          
+          # 创建本地配置文件
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "ndk.dir=$ANDROID_NDK_ROOT" >> local.properties
+          
+          echo "Environment variables set:"
+          echo "ANDROID_SDK=$ANDROID_SDK"
+          echo "ANDROID_NDK=$ANDROID_NDK"
+          echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))"
+          
+          # 导出到后续步骤
+          echo "ANDROID_SDK=$ANDROID_HOME" >> $GITHUB_ENV
+          echo "ANDROID_NDK=$ANDROID_NDK_ROOT" >> $GITHUB_ENV
+          echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))" >> $GITHUB_ENV
+
+      - name: Build libvlc for arm64-v8a architecture
+        run: |
+          cd "$GITHUB_WORKSPACE"/vlc-android
+          
+          echo "Current directory: $(pwd)"
+          echo "ANDROID_SDK: $ANDROID_SDK"
+          echo "ANDROID_NDK: $ANDROID_NDK"
+          echo "JAVA_HOME: $JAVA_HOME"
+          
+          # 检查构建脚本
+          echo "Checking buildsystem directory..."
+          ls -la buildsystem/
+          
+          chmod +x buildsystem/compile.sh
+          chmod +x buildsystem/compile-medialibrary.sh
+          chmod +x buildsystem/compile-remoteaccess.sh
+          
+          if [ ! -f "buildsystem/compile.sh" ]; then
+            echo "✗ compile.sh not found in buildsystem/"
+            find . -name "compile.sh" -type f
+            exit 1
+          fi
+          
+          echo "Starting libVLC build for arm64-v8a (this may take 15-20 minutes)..."
+          # 执行编译并捕获退出码
+          if ! ./buildsystem/compile.sh -l -a arm64-v8a -t -r; then
+            echo "✗ arm64-v8a build failed, checking logs..."
+            # 输出最后100行日志便于排查
+            tail -100 buildsystem/compile.log 2>/dev/null
+            exit 1
+          fi
+          
+          echo "✓ arm64-v8a build completed!"
+          
+          # 备份构建结果
+          mkdir -p "$GITHUB_WORKSPACE/build_artifacts/arm64-v8a"
+          
+          # 查找并复制AAR（确保找到有效AAR）
+          AAR_FILE=$(find . -name "*.aar" -type f 2>/dev/null | grep -E "(libvlc|release)" | head -1)
+          if [ -z "$AAR_FILE" ]; then
+            echo "✗ No AAR file found for arm64-v8a"
+            find . -name "*.aar" -type f 2>/dev/null
+            exit 1
+          fi
+          echo "Found AAR for arm64-v8a: $AAR_FILE"
+          cp "$AAR_FILE" "$GITHUB_WORKSPACE/build_artifacts/arm64-v8a/"
+          
+          # 复制SO文件
+          find . -name "*.so" -type f 2>/dev/null | while read file; do
+            if echo "$file" | grep -q "arm64-v8a"; then
+              arch="arm64-v8a"
+              mkdir -p "$GITHUB_WORKSPACE/build_artifacts/libs/$arch"
+              cp "$file" "$GITHUB_WORKSPACE/build_artifacts/libs/$arch/"
+            fi
+          done
+          
+          echo "✓ arm64-v8a artifacts backed up successfully"
+          
       - name: Clean intermediate build files
         run: |
-          ./gradlew clean
-          rm -rf .gradle/caches/  # 彻底清除缓存避免污染
-      
-      - name: Build arm64-v8a
+          cd "$GITHUB_WORKSPACE"/vlc-android
+          
+          echo "Cleaning intermediate build files for next architecture..."
+          
+          # 彻底清理但保留contribs（加速后续构建）
+          rm -rf libvlcjni/libvlc/build/*
+          rm -rf libvlcjni/vlc/build-android-*
+          rm -rf .gradle/caches
+          rm -rf .gradle/daemon
+          rm -rf app/build
+          rm -rf libvlcjni/build
+          
+          echo "✓ Intermediate files cleaned"
+          
+      - name: Build libvlc for armeabi-v7a architecture
         run: |
-          ./buildsystem/compile.sh -l -a arm64-v8a -t -r --info
-          cp vlc-android/libvlcjni/libvlc/build/outputs/aar/*.aar build_artifacts/libs/
-      
-      - name: Build armeabi-v7a
+          cd "$GITHUB_WORKSPACE"/vlc-android
+          
+          echo "Current directory: $(pwd)"
+          echo "ANDROID_SDK: $ANDROID_SDK"
+          echo "ANDROID_NDK: $ANDROID_NDK"
+          
+          echo "Starting libVLC build for armeabi-v7a (this may take 15-20 minutes)..."
+          # 执行编译并捕获退出码
+          if ! ./buildsystem/compile.sh -l -a armeabi-v7a -t -r; then
+            echo "✗ armeabi-v7a build failed, checking logs..."
+            tail -100 buildsystem/compile.log 2>/dev/null
+            exit 1
+          fi
+          
+          echo "✓ armeabi-v7a build completed!"
+          
+          # 备份构建结果
+          mkdir -p "$GITHUB_WORKSPACE/build_artifacts/armeabi-v7a"
+          
+          # 查找并复制AAR
+          AAR_FILE=$(find . -name "*.aar" -type f 2>/dev/null | grep -E "(libvlc|release)" | head -1)
+          if [ -z "$AAR_FILE" ]; then
+            echo "✗ No AAR file found for armeabi-v7a"
+            find . -name "*.aar" -type f 2>/dev/null
+            exit 1
+          fi
+          echo "Found AAR for armeabi-v7a: $AAR_FILE"
+          cp "$AAR_FILE" "$GITHUB_WORKSPACE/build_artifacts/armeabi-v7a/"
+          
+          # 复制SO文件
+          find . -name "*.so" -type f 2>/dev/null | while read file; do
+            if echo "$file" | grep -q "armeabi-v7a"; then
+              arch="armeabi-v7a"
+              mkdir -p "$GITHUB_WORKSPACE/build_artifacts/libs/$arch"
+              cp "$file" "$GITHUB_WORKSPACE/build_artifacts/libs/$arch/"
+            fi
+          done
+          
+          echo "✓ armeabi-v7a artifacts backed up successfully"
+          
+      - name: Merge multi-architecture AAR
         run: |
-          ./buildsystem/compile.sh -l -a armeabi-v7a -t -r --info
-          cp vlc-android/libvlcjni/libvlc/build/outputs/aar/*.aar build_artifacts/libs/
-      
-      - name: Run unit tests
-        run: ./gradlew test --parallel --max-workers=4
-      
-      - name: Run static analysis
-        run: ./gradlew checkstyle pmd lint
-
-  # 阶段4: 产物处理与部署
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build_and_test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4.1.1
-      
-      - name: Merge AAR artifacts
+          cd "$GITHUB_WORKSPACE"
+          
+          echo "Merging multi-architecture AAR files..."
+          
+          # 优先使用armeabi-v7a的AAR作为基础
+          BASE_AAR=$(find build_artifacts/armeabi-v7a -name "*.aar" -type f 2>/dev/null | head -1)
+          if [ -z "$BASE_AAR" ]; then
+            BASE_AAR=$(find build_artifacts/arm64-v8a -name "*.aar" -type f 2>/dev/null | head -1)
+          fi
+          
+          if [ -z "$BASE_AAR" ] || [ ! -f "$BASE_AAR" ]; then
+            echo "✗ Could not find valid base AAR file"
+            find build_artifacts -name "*.aar" -type f 2>/dev/null
+            exit 1
+          fi
+          
+          echo "Using base AAR: $BASE_AAR"
+          
+          # 临时目录处理
+          TEMP_DIR=$(mktemp -d)
+          echo "Using temp directory: $TEMP_DIR"
+          
+          # 解压基础AAR
+          unzip -q "$BASE_AAR" -d "$TEMP_DIR"
+          mkdir -p "$TEMP_DIR/jni"
+          
+          # 复制各架构SO文件
+          for arch in arm64-v8a armeabi-v7a; do
+            if [ -d "build_artifacts/libs/$arch" ]; then
+              echo "Copying $arch libraries..."
+              mkdir -p "$TEMP_DIR/jni/$arch"
+              cp build_artifacts/libs/$arch/*.so "$TEMP_DIR/jni/$arch/" 2>/dev/null
+              echo "Copied $(ls -1 "$TEMP_DIR/jni/$arch/" 2>/dev/null | wc -l) $arch libraries"
+            fi
+          done
+          
+          # 生成合并AAR（覆盖原有文件）
+          cd "$TEMP_DIR"
+          zip -qr -u "$GITHUB_WORKSPACE/${{ env.AAR_NAME }}" .
+          
+          cd "$GITHUB_WORKSPACE"
+          echo "✓ Merged AAR created: $GITHUB_WORKSPACE/${{ env.AAR_NAME }}"
+          echo "File size: $(du -h ${{ env.AAR_NAME }} | cut -f1)"
+          
+          # 清理临时目录
+          rm -rf "$TEMP_DIR"
+          
+      - name: Verify multi-architecture aar file
         run: |
-          mkdir -p build_artifacts/merged
-          find vlc-android -name "*.so" -type f -exec cp {} build_artifacts/merged/ \;
-          find vlc-android -name "*.aar" -type f -exec cp {} build_artifacts/merged/ \;
-      
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v3.1.3
+          cd "$GITHUB_WORKSPACE"
+          
+          if [ ! -f "${{ env.AAR_NAME }}" ]; then
+            echo "✗ Error: Merged AAR file not found"
+            find build_artifacts -type f 2>/dev/null | head -30
+            exit 1
+          fi
+          
+          echo "✓ Multi-architecture AAR file found"
+          echo "File size: $(du -h ${{ env.AAR_NAME }} | cut -f1)"
+          file ${{ env.AAR_NAME }}
+          
+          # 验证AAR内容
+          echo "AAR contents (native libraries):"
+          unzip -l ${{ env.AAR_NAME }} | grep "\.so$" || echo "⚠ No native libraries found in AAR"
+          
+          # 检查架构完整性
+          ARCH_COUNT=$(unzip -l ${{ env.AAR_NAME }} | grep "\.so$" | sed 's/.*\/jni\/\([^/]*\)\/.*/\1/' | sort | uniq | wc -l)
+          if [ "$ARCH_COUNT" -lt 2 ]; then
+            echo "⚠ Only $ARCH_COUNT architecture found in merged AAR"
+            unzip -l ${{ env.AAR_NAME }} | grep "\.so$" | sed 's/.*\/jni\/\([^/]*\)\/.*/\1/' | sort | uniq
+          else
+            echo "✓ Both target architectures found in AAR"
+          fi
+          
+          # 验证关键文件存在
+          if ! unzip -l ${{ env.AAR_NAME }} | grep -q "AndroidManifest.xml"; then
+            echo "✗ AndroidManifest.xml missing from AAR"
+            exit 1
+          fi
+          if ! unzip -l ${{ env.AAR_NAME }} | grep -q "classes.jar"; then
+            echo "✗ classes.jar missing from AAR"
+            exit 1
+          fi
+          
+          echo "✓ Multi-architecture AAR verified successfully"
+          
+      - name: Create github release
+        uses: softprops/action-gh-release@master
         with:
-          name: AndroidBuildArtifacts
-          path: build_artifacts/merged/
-      
-      - name: Deploy to test environment
-        if: github.ref == 'refs/heads/main'
-        run: |
-          echo "Deploying to test environment..."
-          # 实际部署命令（如上传到Firebase Test Lab）
+          tag_name: ${{ env.BUILD_DATE }}-vlclib
+          files: |
+            ${{ github.workspace }}/${{ env.AAR_NAME }}
+          draft: false
+          prerelease: false
+          name: "LibVLC Multi-Arch Release (${{ env.BUILD_DATE }})"
+          body: |
+            ## LibVLC AAR (Multi-Architecture)
+            - VLC Branch: ${{ env.VLC_BRANCH }}
+            - Supported Architectures: arm64-v8a, armeabi-v7a
+            - NDK Version: ${{ env.NDK_VERSION }}
+            - Build Date: ${{ env.BUILD_DATE }} (UTC+8)
+
+      # - name: Push vlc aar to bv-libs repository
+      #   env:
+      #     TARGET_REPO: "git@github.com:zxgv5/bv-libs.git"
+      #   run: |
+      #     # 设置 SSH 密钥和配置
+      #     echo "Setting up SSH configuration..."
+      #     mkdir -p ~/.ssh
+      #     chmod 700 ~/.ssh
+      #     
+      #     # 写入私钥
+      #     echo "${{ secrets.BV_LIBS_DEPLOY_KEY }}" > ~/.ssh/id_ed25519
+      #     chmod 600 ~/.ssh/id_ed25519
+      #     
+      #     # 配置 SSH 不验证主机
+      #     echo "Host github.com" >> ~/.ssh/config
+      #     echo "  StrictHostKeyChecking no" >> ~/.ssh/config
+      #     echo "  UserKnownHostsFile /dev/null" >> ~/.ssh/config
+      #     chmod 600 ~/.ssh/config
+      #     
+      #     # 测试 SSH 连接
+      #     echo "Testing SSH connection to GitHub..."
+      #     ssh -T git@github.com 2>&1 | grep -v "successfully authenticated" || true
+      #     
+      #     # 设置 Git 配置
+      #     git config --global user.name "GitHub Actions"
+      #     git config --global user.email "actions@github.com"
+      #     git config --global init.defaultBranch main
+      #     
+      #     # 克隆目标仓库
+      #     cd "$GITHUB_WORKSPACE"
+      #     echo "Cloning target repository: ${{ env.TARGET_REPO }}"
+      #     git clone ${{ env.TARGET_REPO }} target-repo
+      #     cd target-repo
+      #     
+      #     # 确保在 main 分支
+      #     git checkout main
+      #     
+      #     # 复制新的 AAR 文件到目标位置
+      #     SOURCE_AAR="$GITHUB_WORKSPACE/${{ env.AAR_NAME }}"
+      #     TARGET_DIR="libVLC"
+      #     
+      #     # 检查 AAR 文件是否存在
+      #     if [ -f "$SOURCE_AAR" ]; then
+      #       echo "✓ Found AAR file: $SOURCE_AAR"
+      #       
+      #       # 确保目标目录存在
+      #       mkdir -p "$TARGET_DIR"
+      #       
+      #       # 复制新文件
+      #       echo "Copying new AAR file..."
+      #       cp -v "$SOURCE_AAR" "$TARGET_DIR/${{ env.AAR_NAME }}"
+      #       
+      #       # 提交更改
+      #       echo "Committing changes..."
+      #       git add "$TARGET_DIR/${{ env.AAR_NAME }}"
+      #       
+      #       # 检查是否有更改
+      #       if git diff --cached --quiet; then
+      #         echo "No changes to commit."
+      #       else
+      #         git commit -m "Update VLC AAR (multi-arch: arm64+v7a) - ${{ env.BUILD_DATE }} [CI]"
+      #         echo "Pushing to remote repository..."
+      #         git push origin main
+      #         echo "✓ Successfully pushed multi-architecture VLC AAR to ${{ env.TARGET_REPO }}"
+      #       fi
+      #     else
+      #       echo "✗ Error: AAR file not found at $SOURCE_AAR"
+      #       exit 1
+      #     fi
+      #     
+      #     # 清理 SSH 密钥
+      #     rm -f ~/.ssh/id_ed25519
+      #     rm -f ~/.ssh/config
+ 
+      # 可选：缓存构建结果以加速后续构建
+      # - name: Cache build artifacts
+      #   uses: actions/cache@v3
+      #   with:
+      #     path: |
+      #       ~/.gradle/caches
+      #       ~/.gradle/wrapper
+      #       vlc-android/.gradle
+      #       vlc-android/libvlcjni/vlc/contrib
+      #     key: ${{ runner.os }}-vlc-build-${{ hashFiles('vlc-android/compile.sh', 'vlc-android/build.gradle') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-vlc-build-
