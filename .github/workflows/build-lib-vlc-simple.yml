@@ -151,7 +151,7 @@ jobs:
           echo "Cloning VLC Android repository from ${{ env.VLC_REPO_URL }} (branch: ${{ env.VLC_BRANCH }})"
           
           # 克隆仓库（添加深度和超时）
-          if ! git clone --depth 1 --branch ${{ env.VLC_BRANCH }} --timeout=60 ${{ env.VLC_REPO_URL }} vlc-android; then
+          if ! git clone --depth 1 --branch ${{ env.VLC_BRANCH }} ${{ env.VLC_REPO_URL }} vlc-android; then
             echo "✗ Failed to clone VLC repository, exiting"
             exit 1
           fi
