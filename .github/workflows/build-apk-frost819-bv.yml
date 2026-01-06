@@ -39,6 +39,11 @@ jobs:
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
+      - name: Run customize scripts
+        run: |
+          chmod +x $GITHUB_WORKSPACE/scripts/customize-bv-frost819.sh
+          $GITHUB_WORKSPACE/scripts/customize-bv-frost819.sh
+
       - name: Merge libraries from monorepo structure
         run: |
           echo "=== 从 bv-libs Monorepo 复制各子库 ==="
