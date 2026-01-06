@@ -20,6 +20,13 @@ jobs:
           rm -rf ~/.gradle/caches/transforms-*
           rm -rf ~/.android/build-cache/
 
+      # 检出ci仓库，以便在runner中调用sh脚本
+      - name: Checkout ci source repo (self)
+        uses: actions/checkout@v4
+        with:
+          # 指定一个子目录放ci仓库，避免与源仓库混淆
+          path: android-ci-source
+
       - name: Checkout source repo (frost819-bv)
         uses: actions/checkout@main
         with:
@@ -41,8 +48,8 @@ jobs:
 
       - name: Run customize scripts
         run: |
-          chmod +x $GITHUB_WORKSPACE/scripts/customize-bv-frost819.sh
-          $GITHUB_WORKSPACE/scripts/customize-bv-frost819.sh
+          chmod +x $GITHUB_WORKSPACE/android-ci-source/scripts/customize-bv-frost819.sh
+          $GITHUB_WORKSPACE/android-ci-source/scripts/customize-bv-frost819.sh
 
       - name: Merge libraries from monorepo structure
         run: |
