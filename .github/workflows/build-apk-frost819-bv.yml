@@ -101,6 +101,33 @@ jobs:
           java-version: ${{ env.JDK_VERSION }}
           distribution: 'temurin'
 
+      # 步骤：在设置Java之后，构建之前，插入以下步骤
+      # 清理插件解析缓存
+      - name: Clean plugins resolution cache
+        working-directory: ./frost819-bv-source
+        run: |
+          # 强制清理 Gradle 插件解析相关的缓存，这是关键
+          rm -rf ~/.gradle/caches/*/plugin-resolution/
+          rm -rf ~/.gradle/caches/jars-*/  
+          echo "已清理插件解析缓存"
+      
+      - name: Validate google maven repo connection
+        run: |
+          # 直接测试构建所需的核心仓库连通性
+          echo "测试 Google Maven 仓库..."
+          if curl -s --connect-timeout 10 "https://dl.google.com/android/maven2/index.html" > /dev/null; then
+            echo "✅ Google Maven 仓库可达"
+          else
+            echo "❌ 无法访问 Google Maven 仓库，可能是网络问题"
+          fi
+          
+          echo "测试 Gradle 插件门户..."
+          if curl -s --connect-timeout 10 "https://plugins.gradle.org/" > /dev/null; then
+            echo "✅ Gradle 插件门户可达"
+          else
+            echo "❌ 无法访问 Gradle 插件门户"
+          fi
+
       # - name: Setup android sdk (minimal)
       #   uses: android-actions/setup-android@main
       #   with:
