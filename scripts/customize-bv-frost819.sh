@@ -8,4 +8,5 @@ FROST819_BV_SOURCE_APPCONFIGURATION="$FROST819_BV_SOURCE_ROOT/buildSrc/src/main/
 sed -i \
   -e 's/const val minSdk = 21/const val minSdk = 23/' \
   -e 's/"git rev-list --count HEAD".exec().toInt() - 5/"git rev-list --count HEAD".exec().toInt() + 1/' \
+  -e 's/const val applicationId = "dev.frost819.bv"/const val applicationId = "dev.f819.bv"/' \
   "$FROST819_BV_SOURCE_APPCONFIGURATION"
