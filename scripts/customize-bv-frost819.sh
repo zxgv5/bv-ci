@@ -41,7 +41,7 @@ awk '
     print "    x3_25(2, R.string.play_speed_x3_25, 3.25f),"
     print "    x3(0, R.string.play_speed_x3, 3f),"
     print "    x2_75(0, R.string.play_speed_x2_75, 2.75f),"
-    print "    x2_5(0, R.string.play_speed_x2_2, 2.5f),"
+    print "    x2_5(0, R.string.play_speed_x2_5, 2.5f),"
     print "    x2_25(0, R.string.play_speed_x2_25, 2.25f),"
     print "    x2(4, R.string.play_speed_x2, 2f),"
     print "    x1_75(0, R.string.play_speed_x1_75, 1.75f),"
