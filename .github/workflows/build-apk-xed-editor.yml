@@ -12,7 +12,7 @@ jobs:
     steps:
       - name: Clean runner environment
         run: |
-          # 清理可能存在的全局缓存文件
+          # 娓呯悊鍙兘瀛樺湪鐨勫叏灞�缂撳瓨鏂囦欢
           rm -rf ~/.gradle/caches/transforms-*
           rm -rf ~/.android/build-cache/
 
@@ -33,15 +33,15 @@ jobs:
           distribution: "temurin"
           cache: gradle
           
-      - name: Cache gradle build files
-        uses: actions/cache@main
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      # - name: Cache gradle build files
+      #   uses: actions/cache@main
+      #   with:
+      #     path: |
+      #       ~/.gradle/caches
+      #       ~/.gradle/wrapper
+      #     key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties', '**/libs.versions.toml') }}
+      #     restore-keys: |
+      #       ${{ runner.os }}-gradle-
 
       - name: Decode and create secrets
         run: |
