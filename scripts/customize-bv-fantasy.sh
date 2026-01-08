@@ -132,15 +132,8 @@ perl -i -0777 -pe '
 //                    }}sg;
 ' "$FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT"
 
-
-
-
-
-
-
-
-
-
-
-
-
+# 还有两行没有注释掉，补上
+sed -i \
+  -e 's/^\([[:space:]]*\)HomeTopNavItem\.FollowingSeason -> followingSeasonState$/\1\/\/HomeTopNavItem.FollowingSeason -> followingSeasonState/' \
+  -e 's/^\([[:space:]]*\)HomeTopNavItem\.ToView -> toViewState$/\1\/\/HomeTopNavItem.ToView -> toViewState/' \
+  "$FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT"
