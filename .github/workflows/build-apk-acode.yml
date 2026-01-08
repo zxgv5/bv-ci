@@ -77,9 +77,6 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Set up android sdk
-        uses: android-actions/setup-android@main
-
       - name: Add keystore and build.json from secrets
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ env.STORE_FILE_PATH }}"
