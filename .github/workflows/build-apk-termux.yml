@@ -33,6 +33,35 @@ jobs:
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
 
+      # ========== 新增：准备bootstrap文件 ==========
+      - name: Prepare bootstrap files
+        run: |
+          echo "Downloading bootstrap files for Termux build"
+          
+          # 创建目录
+          mkdir -p ./app/src/main/cpp/
+          
+          # 下载bootstrap-aarch64.zip
+          BOOTSTRAP_URL="https://github.com/termux/termux-packages/releases/latest/download/bootstrap-aarch64.zip"
+          
+          if command -v curl >/dev/null 2>&1; then
+            curl -L -o ./app/src/main/cpp/bootstrap-aarch64.zip "$BOOTSTRAP_URL"
+          elif command -v wget >/dev/null 2>&1; then
+            wget -O ./app/src/main/cpp/bootstrap-aarch64.zip "$BOOTSTRAP_URL"
+          else
+            echo "ERROR: Neither curl nor wget is available"
+            exit 1
+          fi
+          
+          # 验证下载
+          if [ ! -f "./app/src/main/cpp/bootstrap-aarch64.zip" ]; then
+            echo "ERROR: Failed to download bootstrap file"
+            exit 1
+          fi
+          
+          echo "Bootstrap file size: $(stat -c%s ./app/src/main/cpp/bootstrap-aarch64.zip) bytes"
+      # ========== 结束新增 ==========
+
       - name: Build apk files and rename
         shell: bash {0}
         env:
