@@ -250,9 +250,19 @@ jobs:
       - name: Install 7zip
         run: sudo apt-get update && sudo apt-get install -y p7zip-full
 
-      - name: Create encrypted archive
+      - name: Create AES256 encrypted archive with filename encryption
         run: |
-          7z a -p"${{ secrets.ZIP_AES256_PWD }}" -mhe=on -t7z -m0=lzma2 -mx=9 -mfb=64 -md=32m -ms=on /tmp/acode-${{ env.BUILD_DATE }}.7z /tmp/acode-${{ env.BUILD_DATE }}.apk
+          7z a \
+            -p"${{ secrets.ZIP_AES256_PWD }}" \
+            -mhe=on \
+            -t7z \
+            -m0=lzma2 \
+            -mx=9 \
+            -mfb=64 \
+            -md=32m \
+            -ms=on \
+            /tmp/acode-${{ env.BUILD_DATE }}.7z \
+            /tmp/acode-${{ env.BUILD_DATE }}.apk
         shell: bash
 
       - name: Create github release & upload encrypted archive
