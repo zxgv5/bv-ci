@@ -6,6 +6,7 @@ on:
 
 env:
   SOURCE_REPO: 'https://github.com/videolan/vlc-android.git'
+  # SOURCE_BRANCH: 'libvlc-3.6.5'
   SOURCE_BRANCH: 'master'
   BUILD_DIR: 'vlc-android-source'
   GRADLE_VERSION: '8.13'
@@ -34,9 +35,6 @@ jobs:
           # 使用更彻底的清理，避免残留文件导致问题
           rm -rf "${{ env.BUILD_DIR }}"
           git clone --depth 1 --branch "${{ env.SOURCE_BRANCH }}" "${{ env.SOURCE_REPO }}" "${{ env.BUILD_DIR }}"
-
-
-
 
       - name: Setup java 17
         uses: actions/setup-java@main
@@ -99,173 +97,73 @@ jobs:
           ./gradlew wrapper --gradle-version=${{ env.GRADLE_VERSION }} --distribution-type=all --quiet 2>/dev/null || true
           
           echo "✅ 环境配置完成"
-    
-    # 始终用最新的vlc源码(https://code.videolan.org/videolan/vlc.git)，即master分支，而非get-vlc.sh中指定的VLC_TESTED_HASH对应的提交
-    - name: Patch get-vlc.sh to always use latest vlc source
-      run: |
-        cd "${{ env.BUILD_DIR }}"
-        
-        # 找到 get-vlc.sh 脚本，通常在 libvlcjni/buildsystem/ 目录
-        GET_VLC_SCRIPT="libvlcjni/buildsystem/get-vlc.sh"
-        if [ ! -f "$GET_VLC_SCRIPT" ]; then
-          # 也可能在 buildsystem/ 根目录
-          GET_VLC_SCRIPT="buildsystem/get-vlc.sh"
-        fi
-        
-        if [ -f "$GET_VLC_SCRIPT" ]; then
-          echo "找到并修改脚本: $GET_VLC_SCRIPT"
-          # 备份原脚本
-          cp "$GET_VLC_SCRIPT" "$GET_VLC_SCRIPT.backup"
-          
-          # 方案一（推荐）：注释掉重置到特定哈希的命令行
-          # 这会让脚本克隆后停留在最新的 master 分支上
-          sed -i 's/git reset --hard ${VLC_TESTED_HASH}/# &/' "$GET_VLC_SCRIPT"
-          # 同时注释掉后续的哈希检查和补丁验证（如果不需要）
-          # sed -i 's/check_patch_is_applied/# &/' "$GET_VLC_SCRIPT"
-          
-          echo "✅ 已修改脚本，将使用最新 master 分支代码。"
-        else
-          echo "⚠️  警告：未找到 get-vlc.sh 脚本，将使用默认流程。"
-        fi
 
-      # 手动获取并修改vlc源代码
-      - name: Get and modify vlc source code
+      - name: Modify vlc source code before building
         run: |
           cd "${{ env.BUILD_DIR }}"
           
-          echo "=== 手动获取VLC源代码 ==="
+          echo "=== 修改VLC源代码 ==="
           
-          # 检查libvlcjni目录是否存在
-          if [ ! -d "libvlcjni" ]; then
-            echo "libvlcjni目录不存在，创建..."
-            # 从clone的源码中查找或创建
-            if [ -d "libvlc" ]; then
-              mv libvlc libvlcjni
-            else
-              mkdir -p libvlcjni
-            fi
-          fi
-          
-          # 手动运行get-vlc.sh来获取VLC核心代码
-          echo "运行get-vlc.sh获取VLC核心代码..."
-          if [ -f "libvlcjni/buildsystem/get-vlc.sh" ]; then
-            (cd libvlcjni && ./buildsystem/get-vlc.sh)
-          elif [ -f "buildsystem/get-vlc.sh" ]; then
-            ./buildsystem/get-vlc.sh
-          else
-            echo "get-vlc.sh未找到，手动克隆VLC..."
-            git clone --depth 1 https://code.videolan.org/videolan/vlc.git libvlcjni/vlc
-          fi
-          
-          # 确认VLC源代码已获取
+          # 等待VLC源代码被获取（通常在第一次构建时）
+          echo "等待VLC源代码被获取..."
           if [ ! -d "libvlcjni/vlc" ]; then
-            echo "❌ VLC源代码目录不存在"
-            exit 1
-          fi
-          
-          VLC_SRC_DIR="libvlcjni/vlc"
-          echo "VLC源代码位于: $VLC_SRC_DIR"
-          
-          # 查看当前VLC版本
-          echo "=== 当前VLC版本信息 ==="
-          (cd "$VLC_SRC_DIR" && git log --oneline -1) || echo "无法获取git信息"
-          
-          echo "=== 开始修改VLC源代码 ==="
-          
-          # 1. 修改 /lib/core.c
-          echo "1. 修改 /lib/core.c..."
-          CORE_FILE="$VLC_SRC_DIR/lib/core.c"
-          if [ -f "$CORE_FILE" ]; then
-            # 备份原文件
-            cp "$CORE_FILE" "${CORE_FILE}.backup"
-            # 使用精确的sed命令
-            sed -i 's/&& (asprintf (\&str, "%s LibVLC\/"PACKAGE_VERSION, http) != -1))/&& (asprintf (\&str, "%s abc_media_editor", http) != -1))/' "$CORE_FILE"
+            echo "VLC源代码目录不存在，构建过程中会自动获取"
+            echo "将在构建后步骤中修改源代码"
+          else
+            # 修改源代码
+            echo "找到VLC源代码目录，开始修改..."
+            VLC_SRC_DIR="libvlcjni/vlc"
+            
+            # 1. 修改 /lib/core.c
+            echo "1. 修改 /lib/core.c..."
+            CORE_FILE="$VLC_SRC_DIR/lib/core.c"
+            if [ -f "$CORE_FILE" ]; then
+              sed -i 's/&& (asprintf (\&str, "%s LibVLC\/"PACKAGE_VERSION, http) != -1))/&& (asprintf (\&str, "%s abc_media_editor", http) != -1))/' "$CORE_FILE"
+              echo "✅ /lib/core.c 修改完成"
+            else
+              echo "⚠️  文件不存在: $CORE_FILE"
+            fi
+            
+            # 2. 修改 /src/libvlc.c - 第一处
+            echo "2. 修改 /src/libvlc.c - 第一处..."
+            LIBVLC_FILE="$VLC_SRC_DIR/src/libvlc.c"
+            if [ -f "$LIBVLC_FILE" ]; then
+              sed -i 's/"VLC media player (LibVLC "VERSION")"/"abc media editor"/' "$LIBVLC_FILE"
+              echo "✅ /src/libvlc.c 第一处修改完成"
+            else
+              echo "⚠️  文件不存在: $LIBVLC_FILE"
+            fi
+            
+            # 3. 修改 /src/libvlc.c - 第二处
+            echo "3. 修改 /src/libvlc.c - 第二处..."
+            if [ -f "$LIBVLC_FILE" ]; then
+              sed -i 's/"VLC\/"PACKAGE_VERSION" LibVLC\/"PACKAGE_VERSION/"abc\/abc_media_editor\/"/' "$LIBVLC_FILE"
+              echo "✅ /src/libvlc.c 第二处修改完成"
+            fi
+            
+            # 4. 修改 /modules/access/live555.cpp
+            echo "4. 修改 /modules/access/live555.cpp..."
+            LIVE555_FILE="$VLC_SRC_DIR/modules/access/live555.cpp"
+            if [ -f "$LIVE555_FILE" ]; then
+              sed -i 's/"LibVLC\/" VERSION/"abc_media_editor"/' "$LIVE555_FILE"
+              echo "✅ /modules/access/live555.cpp 修改完成"
+            else
+              echo "⚠️  文件不存在: $LIVE555_FILE"
+            fi
             
             # 验证修改
-            if grep -q "abc_media_editor" "$CORE_FILE"; then
-              echo "✅ /lib/core.c 修改成功"
-            else
-              echo "⚠️  /lib/core.c 可能未成功修改"
-              # 显示修改前后的对比
-              echo "修改前的行:"
-              grep -n "LibVLC/" "${CORE_FILE}.backup" | head -2
-              echo "修改后的行:"
-              grep -n "abc_media_editor" "$CORE_FILE" || echo "未找到abc_media_editor"
-            fi
-          else
-            echo "❌ 文件不存在: $CORE_FILE"
-          fi
-          
-          # 2. 修改 /src/libvlc.c - 第一处
-          echo -e "\n2. 修改 /src/libvlc.c - 第一处..."
-          LIBVLC_FILE="$VLC_SRC_DIR/src/libvlc.c"
-          if [ -f "$LIBVLC_FILE" ]; then
-            # 备份原文件
-            cp "$LIBVLC_FILE" "${LIBVLC_FILE}.backup"
-            # 第一处修改
-            sed -i 's/"VLC media player (LibVLC "VERSION")"/"abc media editor"/' "$LIBVLC_FILE"
+            echo "=== 修改验证 ==="
+            for file in "$CORE_FILE" "$LIBVLC_FILE" "$LIVE555_FILE"; do
+              if [ -f "$file" ]; then
+                echo "文件: $(basename "$file")"
+                grep -n "abc_media_editor\|abc media editor" "$file" | head -2 || echo "  未找到修改"
+              fi
+            done
             
-            # 验证第一处修改
-            if grep -q '"abc media editor"' "$LIBVLC_FILE"; then
-              echo "✅ /src/libvlc.c 第一处修改成功"
-            else
-              echo "⚠️  /src/libvlc.c 第一处可能未成功修改"
-            fi
-          else
-            echo "❌ 文件不存在: $LIBVLC_FILE"
+            echo "✅ VLC源代码修改完成"
           fi
-          
-          # 3. 修改 /src/libvlc.c - 第二处
-          echo -e "\n3. 修改 /src/libvlc.c - 第二处..."
-          if [ -f "$LIBVLC_FILE" ]; then
-            # 第二处修改
-            sed -i 's/"VLC\/"PACKAGE_VERSION" LibVLC\/"PACKAGE_VERSION/"abc\/abc_media_editor\/"/' "$LIBVLC_FILE"
-            
-            # 验证第二处修改
-            if grep -q '"abc/abc_media_editor/"' "$LIBVLC_FILE"; then
-              echo "✅ /src/libvlc.c 第二处修改成功"
-            else
-              echo "⚠️  /src/libvlc.c 第二处可能未成功修改"
-            fi
-          fi
-          
-          # 4. 修改 /modules/access/live555.cpp
-          echo -e "\n4. 修改 /modules/access/live555.cpp..."
-          LIVE555_FILE="$VLC_SRC_DIR/modules/access/live555.cpp"
-          if [ -f "$LIVE555_FILE" ]; then
-            # 备份原文件
-            cp "$LIVE555_FILE" "${LIVE555_FILE}.backup"
-            # 修改
-            sed -i 's/"LibVLC\/" VERSION/"abc_media_editor"/' "$LIVE555_FILE"
-            
-            # 验证修改
-            if grep -q '"abc_media_editor"' "$LIVE555_FILE"; then
-              echo "✅ /modules/access/live555.cpp 修改成功"
-            else
-              echo "⚠️  /modules/access/live555.cpp 可能未成功修改"
-            fi
-          else
-            echo "❌ 文件不存在: $LIVE555_FILE"
-          fi
-          
-          # 最终验证
-          echo -e "\n=== 修改结果验证 ==="
-          echo "修改的文件列表:"
-          find "$VLC_SRC_DIR" -name "*.backup" -type f | sed 's/.backup$//' | while read file; do
-            echo "  - $file"
-          done
-          
-          echo -e "\n修改内容摘要:"
-          for file in "$CORE_FILE" "$LIBVLC_FILE" "$LIVE555_FILE"; do
-            if [ -f "$file" ]; then
-              echo "=== $(basename "$file") ==="
-              grep -n "abc_media_editor\|abc media editor" "$file" || echo "  未找到自定义字符串"
-            fi
-          done
-          
-          echo -e "\n✅ VLC源代码修改完成"
 
-      # 修改构建步骤，添加-b参数跳过源码检查
+      # 为每个架构构建
       - name: Build libvlc for arm64-v8a
         run: |
           cd "${{ env.BUILD_DIR }}"
@@ -274,8 +172,30 @@ jobs:
           export ANDROID_SDK="$ANDROID_SDK_ROOT"
           export ANDROID_NDK="$ANDROID_NDK_ROOT"
           
-          # 添加-b参数跳过VLC源码检查（因为我们已经手动修改了）
+          # 首次构建时，使用 -t 参数尝试使用预构建的贡献库以节省大量时间
+          # 如果预构建库不存在，脚本会自动回退到源码编译
+          # 使用 -b 参数跳过VLC源码检查（因为我们已经手动修改了）
           time ./buildsystem/compile.sh -l -a arm64 --release -t -b 2>&1 | tee build_arm64.log
+          
+          # 构建完成后检查VLC源代码是否存在，如果不存在则再次修改
+          echo "检查构建后的VLC源代码..."
+          if [ -d "libvlcjni/vlc" ]; then
+            echo "构建后VLC源代码存在，确保修改已应用..."
+            VLC_SRC_DIR="libvlcjni/vlc"
+            
+            # 快速检查修改
+            if grep -q "abc_media_editor" "$VLC_SRC_DIR/lib/core.c" 2>/dev/null; then
+              echo "✅ VLC源代码修改已应用"
+            else
+              echo "⚠️  VLC源代码修改可能未应用，重新修改..."
+              # 重新应用修改
+              sed -i 's/&& (asprintf (\&str, "%s LibVLC\/"PACKAGE_VERSION, http) != -1))/&& (asprintf (\&str, "%s abc_media_editor", http) != -1))/' "$VLC_SRC_DIR/lib/core.c"
+              sed -i 's/"VLC media player (LibVLC "VERSION")"/"abc media editor"/' "$VLC_SRC_DIR/src/libvlc.c"
+              sed -i 's/"VLC\/"PACKAGE_VERSION" LibVLC\/"PACKAGE_VERSION/"abc\/abc_media_editor\/"/' "$VLC_SRC_DIR/src/libvlc.c"
+              sed -i 's/"LibVLC\/" VERSION/"abc_media_editor"/' "$VLC_SRC_DIR/modules/access/live555.cpp"
+              echo "✅ VLC源代码重新修改完成"
+            fi
+          fi
           
           # 检查构建结果
           if ls libvlcjni/libvlc/build/outputs/aar/*.aar 1> /dev/null 2>&1; then
@@ -376,7 +296,7 @@ jobs:
           if [ ${#aars[@]} -lt 1 ]; then
               exit 1
           fi
-          # 尝试找到一个包含“all”或版本号最全的作为基础包
+          # 尝试找到一个包含"all"或版本号最全的作为基础包
           BASE_AAR=""
           for aar in "${aars[@]}"; do
               if [[ "$aar" == *"all"* ]] || [[ "$aar" == *"release"* ]]; then
