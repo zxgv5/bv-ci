@@ -238,7 +238,7 @@ jobs:
           rm -f "keystore.p12"
           echo "Keystore and build.json removed successfully."
 
-      - name: Install 7zip
+      - name: Install 7zip 
         run: sudo apt-get update && sudo apt-get install -y p7zip-full
 
       - name: Create aes256 encrypted archive with filename encryption
