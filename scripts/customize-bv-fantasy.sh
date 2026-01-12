@@ -31,15 +31,15 @@ sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string
 FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt"
 CI_CUSTOMIZE_SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT="$CI_CUSTOMIZE_SCRIPTS_DIR/modify_bv_fantasy_dynamics_screen.py"
-echo "尝试使用python修复“动态”页长按下方向键焦点左移出区问题"
-python3 "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" "$FANTASY_BV_SOURCE_ROOT"
+# echo "尝试使用python修复“动态”页长按下方向键焦点左移出区问题"
+# python3 "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" "$FANTASY_BV_SOURCE_ROOT"
 # 5. 校验python脚本执行结果
-if [ $? -eq 0 ]; then
-    echo "python脚本执行成功"
-else
-    echo "python脚本执行失败！"
-    exit 1
-fi
+# if [ $? -eq 0 ]; then
+#     echo "python脚本执行成功"
+# else
+#     echo "python脚本执行失败！"
+#     exit 1
+# fi
 
 # TV端倍速范围调整
 # 使用sed的上下文匹配，确保只修改VideoPlayerPictureMenuItem.PlaySpeed相关的行
