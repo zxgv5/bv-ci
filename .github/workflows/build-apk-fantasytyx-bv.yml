@@ -55,7 +55,6 @@ jobs:
         uses: actions/setup-python@main
         with:
           python-version: '3.12'
-          cache: 'pip' # 可选：缓存pip依赖，加速后续构建
 
       # 验证版本（无需手动配置python3命令，action已自动处理）
       - name: Verify python and pip versions
