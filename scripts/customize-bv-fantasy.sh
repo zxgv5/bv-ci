@@ -1,7 +1,7 @@
 #!/bin/bash
 # customize-bv-fantasy.sh
 
-# set -e  # 遇到错误立即退出，避免CI静默失败
+set -e  # 遇到错误立即退出，避免CI静默失败
 
 FANTASY_BV_SOURCE_ROOT="$GITHUB_WORKSPACE/fantasy-bv-source"
 
