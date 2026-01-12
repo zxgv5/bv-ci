@@ -2,17 +2,16 @@ import os
 import sys
 
 def modify_libs_versions_toml(file_path):
-    """修改gradle/libs.versions.toml文件：补充junit4测试依赖定义"""
+    """修改gradle/libs.versions.toml文件：使用稳定依赖版本 + BOM统一管理"""
     try:
-        # 读取文件内容
         with open(file_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
         
-        # 步骤1：在[libraries]前添加4行版本定义
+        # 步骤1：在[libraries]前添加4行版本定义（核心修改：降低tv版本为稳定版0.6.0）
         insert_lines_version = [
             'androidx-compose = "1.6.0"  # Compose 核心版本\n',
             'androidx-compose-bom = "2024.02.02"  # Compose BOM 版本\n',
-            'androidx-tv = "1.0.0"  # TV Compose 版本\n',
+            'androidx-tv = "0.6.0"  # TV Compose 稳定版本（1.0.0暂未发布）\n',
             'androidx-lifecycle = "2.7.0"  # Lifecycle 版本\n'
         ]
         libraries_index = None
@@ -21,28 +20,27 @@ def modify_libs_versions_toml(file_path):
                 libraries_index = idx
                 break
         if libraries_index is not None:
-            # 逆序插入保证顺序正确
             for line in reversed(insert_lines_version):
                 lines.insert(libraries_index, line)
         
-        # 步骤2：在文件末尾追加依赖和插件配置（核心修复：补充ui-test-junit4依赖）
+        # 步骤2：在文件末尾追加依赖（核心修改：移除material3手动版本，由BOM管理）
         append_lines = [
             '# 添加的 Compose 相关依赖\n',
-            '# Compose BOM\n',
+            '# Compose BOM（统一管理所有Compose版本）\n',
             'androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidx-compose-bom" }\n',
             '# Compose 基础依赖\n',
             'androidx-compose-ui = { module = "androidx.compose.ui:ui", version.ref = "androidx-compose" }\n',
             'androidx-compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics", version.ref = "androidx-compose" }\n',
             'androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "androidx-compose" }\n',
             'androidx-compose-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "androidx-compose" }\n',
-            'androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "androidx-compose" }\n',
+            'androidx-compose-material3 = { module = "androidx.compose.material3:material3" }\n',  # 移除version.ref，由BOM管理
             'androidx-compose-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "androidx-compose" }\n',
             'androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "androidx-compose" }\n',
             '# Compose Navigation\n',
             'androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version = "2.7.7" }\n',
             '# Compose Activity\n',
             'androidx-activity-compose = { module = "androidx.activity:activity-compose", version = "1.8.2" }\n',
-            '# TV Compose 依赖\n',
+            '# TV Compose 依赖（使用稳定版0.6.0）\n',
             'androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidx-tv" }\n',
             'androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "androidx-tv" }\n',
             '# Lifecycle 依赖\n',
@@ -58,7 +56,6 @@ def modify_libs_versions_toml(file_path):
         ]
         lines.extend(append_lines)
         
-        # 写回文件
         with open(file_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
         print(f"✅ 成功修改: {file_path}")
@@ -72,22 +69,20 @@ def modify_app_build_gradle_kts(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 原依赖块（精确匹配）
         original_block = """dependencies {
     implementation(project(":app:mobile"))
     implementation(project(":app:tv"))
     implementation(project(":app:shared"))
 }"""
         
-        # 新依赖块
         new_block = """dependencies {
     implementation(project(":app:mobile"))
     implementation(project(":app:tv"))
     implementation(project(":app:shared"))
-    // Compose BOM
+    // Compose BOM（统一管理所有Compose版本，避免冲突）
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
-    // TV Compose 依赖（必须）
+    // TV Compose 依赖（使用稳定版0.6.0）
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
     // Compose 基础依赖
@@ -128,18 +123,16 @@ def modify_tv_build_gradle_kts(file_path):
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 原依赖块（精确匹配）
         original_block = """dependencies {
     implementation(project(":app:shared"))
 }"""
         
-        # 新依赖块
         new_block = """dependencies {
     implementation(project(":app:shared"))
-    // Compose BOM
+    // Compose BOM（统一管理所有Compose版本，避免冲突）
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
-    // TV Compose 依赖（必须）
+    // TV Compose 依赖（使用稳定版0.6.0）
     implementation(libs.androidx.tv.foundation)
     implementation(libs.androidx.tv.material)
     // Compose 基础依赖
@@ -263,7 +256,7 @@ def modify_dynamics_screen_kt(file_path):
                     lines.insert(idx+1, l)
                 break
         
-        # 6. 修正：匹配Box中的 modifier = Modifier.fillMaxSize() 行（兼容有无逗号）
+        # 6. 匹配Box中的 modifier = Modifier.fillMaxSize() 行（兼容有无逗号）
         target6_idx = -1
         for idx, line in enumerate(lines):
             stripped_line = line.strip()
@@ -272,12 +265,10 @@ def modify_dynamics_screen_kt(file_path):
                 break
         
         if target6_idx != -1:
-            # 先移除原行末尾的逗号（如果有），再插入新内容
             original_line = lines[target6_idx]
             if original_line.strip().endswith(','):
                 lines[target6_idx] = original_line.replace(',\n', '\n').rstrip(',') + '\n'
             
-            # 插入两行焦点相关代码
             insert6 = [
                 '                                .focusRequester(gridFocusRequester)\n',
                 '                                .focusable(),\n'
@@ -285,7 +276,6 @@ def modify_dynamics_screen_kt(file_path):
             for l in reversed(insert6):
                 lines.insert(target6_idx + 1, l)
         
-        # 写回文件
         with open(file_path, 'w', encoding='utf-8') as f:
             f.writelines(lines)
         print(f"✅ 成功修改: {file_path}")
@@ -294,7 +284,6 @@ def modify_dynamics_screen_kt(file_path):
         raise
 
 def main():
-    # 检查命令行参数
     if len(sys.argv) != 2:
         print("🚫 用法错误！正确用法：")
         print("python modify_files.py <顶级目录>")
@@ -302,7 +291,6 @@ def main():
         sys.exit(1)
     
     root_dir = sys.argv[1]
-    # 拼接所有文件路径
     files = [
         (os.path.join(root_dir, "gradle", "libs.versions.toml"), modify_libs_versions_toml),
         (os.path.join(root_dir, "app", "build.gradle.kts"), modify_app_build_gradle_kts),
@@ -310,13 +298,11 @@ def main():
         (os.path.join(root_dir, "app", "tv", "src", "main", "kotlin", "dev", "aaa1115910", "bv", "tv", "screens", "main", "home", "DynamicsScreen.kt"), modify_dynamics_screen_kt)
     ]
     
-    # 检查文件是否存在
     for file_path, _ in files:
         if not os.path.exists(file_path):
             print(f"🚫 文件不存在：{file_path}")
             sys.exit(1)
     
-    # 执行修改
     for file_path, modify_func in files:
         modify_func(file_path)
     
