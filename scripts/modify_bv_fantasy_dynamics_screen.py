@@ -2,7 +2,7 @@ import os
 import sys
 
 def modify_libs_versions_toml(file_path):
-    """修改gradle/libs.versions.toml文件：修正module格式为group:artifact"""
+    """修改gradle/libs.versions.toml文件：补充junit4测试依赖定义"""
     try:
         # 读取文件内容
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -25,7 +25,7 @@ def modify_libs_versions_toml(file_path):
             for line in reversed(insert_lines_version):
                 lines.insert(libraries_index, line)
         
-        # 步骤2：在文件末尾追加依赖和插件配置（核心修复：module改为group:artifact格式）
+        # 步骤2：在文件末尾追加依赖和插件配置（核心修复：补充ui-test-junit4依赖）
         append_lines = [
             '# 添加的 Compose 相关依赖\n',
             '# Compose BOM\n',
@@ -51,6 +51,7 @@ def modify_libs_versions_toml(file_path):
             '# Compose 工具依赖\n',
             'androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "androidx-compose" }\n',
             'androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidx-compose" }\n',
+            'androidx-compose-ui-test-junit4 = { module = "androidx.compose.ui:ui-test-junit4", version.ref = "androidx-compose" }\n',
             '[plugins]\n',
             '# 添加 Compose 插件\n',
             'androidx-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version = "2.0.21" }\n'
