@@ -2,7 +2,7 @@ import os
 import sys
 
 def modify_libs_versions_toml(file_path):
-    """修改gradle/libs.versions.toml文件：在[libraries]前插入版本定义，末尾追加依赖配置"""
+    """修改gradle/libs.versions.toml文件：修正module格式为group:artifact"""
     try:
         # 读取文件内容
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -25,32 +25,32 @@ def modify_libs_versions_toml(file_path):
             for line in reversed(insert_lines_version):
                 lines.insert(libraries_index, line)
         
-        # 步骤2：在文件末尾追加依赖和插件配置
+        # 步骤2：在文件末尾追加依赖和插件配置（核心修复：module改为group:artifact格式）
         append_lines = [
             '# 添加的 Compose 相关依赖\n',
             '# Compose BOM\n',
             'androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidx-compose-bom" }\n',
             '# Compose 基础依赖\n',
-            'androidx-compose-ui = { module = "androidx.compose.ui", name = "ui" }\n',
-            'androidx-compose-ui-graphics = { module = "androidx.compose.ui", name = "ui-graphics" }\n',
-            'androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui", name = "ui-tooling-preview" }\n',
-            'androidx-compose-foundation = { module = "androidx.compose.foundation", name = "foundation" }\n',
-            'androidx-compose-material3 = { module = "androidx.compose.material3", name = "material3" }\n',
-            'androidx-compose-runtime = { module = "androidx.compose.runtime", name = "runtime" }\n',
-            'androidx-compose-runtime-livedata = { module = "androidx.compose.runtime", name = "runtime-livedata" }\n',
+            'androidx-compose-ui = { module = "androidx.compose.ui:ui", version.ref = "androidx-compose" }\n',
+            'androidx-compose-ui-graphics = { module = "androidx.compose.ui:ui-graphics", version.ref = "androidx-compose" }\n',
+            'androidx-compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview", version.ref = "androidx-compose" }\n',
+            'androidx-compose-foundation = { module = "androidx.compose.foundation:foundation", version.ref = "androidx-compose" }\n',
+            'androidx-compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "androidx-compose" }\n',
+            'androidx-compose-runtime = { module = "androidx.compose.runtime:runtime", version.ref = "androidx-compose" }\n',
+            'androidx-compose-runtime-livedata = { module = "androidx.compose.runtime:runtime-livedata", version.ref = "androidx-compose" }\n',
             '# Compose Navigation\n',
             'androidx-navigation-compose = { module = "androidx.navigation:navigation-compose", version = "2.7.7" }\n',
             '# Compose Activity\n',
             'androidx-activity-compose = { module = "androidx.activity:activity-compose", version = "1.8.2" }\n',
             '# TV Compose 依赖\n',
-            'androidx-tv-foundation = { module = "androidx.tv", name = "tv-foundation", version.ref = "androidx-tv" }\n',
-            'androidx-tv-material = { module = "androidx.tv", name = "tv-material", version.ref = "androidx-tv" }\n',
+            'androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidx-tv" }\n',
+            'androidx-tv-material = { module = "androidx.tv:tv-material", version.ref = "androidx-tv" }\n',
             '# Lifecycle 依赖\n',
-            'androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle", name = "lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }\n',
-            'androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }\n',
+            'androidx-lifecycle-runtime-compose = { module = "androidx.lifecycle:lifecycle-runtime-compose", version.ref = "androidx-lifecycle" }\n',
+            'androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "androidx-lifecycle" }\n',
             '# Compose 工具依赖\n',
-            'androidx-compose-ui-tooling = { module = "androidx.compose.ui", name = "ui-tooling" }\n',
-            'androidx-compose-ui-test-manifest = { module = "androidx.compose.ui", name = "ui-test-manifest" }\n',
+            'androidx-compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling", version.ref = "androidx-compose" }\n',
+            'androidx-compose-ui-test-manifest = { module = "androidx.compose.ui:ui-test-manifest", version.ref = "androidx-compose" }\n',
             '[plugins]\n',
             '# 添加 Compose 插件\n',
             'androidx-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version = "2.0.21" }\n'
@@ -262,11 +262,9 @@ def modify_dynamics_screen_kt(file_path):
                     lines.insert(idx+1, l)
                 break
         
-        # 6. 修正：匹配Box中的 modifier = Modifier.fillMaxSize(), 行（去掉末尾逗号匹配更通用）
-        # 兼容有无逗号的情况，先匹配无逗号的核心行，再处理插入
+        # 6. 修正：匹配Box中的 modifier = Modifier.fillMaxSize() 行（兼容有无逗号）
         target6_idx = -1
         for idx, line in enumerate(lines):
-            # 精确匹配核心内容，忽略末尾逗号/换行
             stripped_line = line.strip()
             if stripped_line == 'modifier = Modifier.fillMaxSize()' or stripped_line == 'modifier = Modifier.fillMaxSize(),':
                 target6_idx = idx
@@ -275,7 +273,6 @@ def modify_dynamics_screen_kt(file_path):
         if target6_idx != -1:
             # 先移除原行末尾的逗号（如果有），再插入新内容
             original_line = lines[target6_idx]
-            # 去掉末尾的逗号（保留缩进和换行）
             if original_line.strip().endswith(','):
                 lines[target6_idx] = original_line.replace(',\n', '\n').rstrip(',') + '\n'
             
