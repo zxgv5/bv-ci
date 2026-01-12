@@ -49,10 +49,9 @@ if [ ! -f "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN" ]; then
     echo "错误：目标文件 $FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN 不存在！"
     exit 1
 fi
-# 4. 执行python脚本（传递目标文件路径作为参数）
+# 4. 执行python脚本（传递目标文件路径作为【位置参数】，去掉--target-file）
 echo "===== 执行python脚本处理DynamicsScreen.kt ====="
-python3 "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" \
-  --target-file "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN"
+python3 "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN"
 # 5. 校验python脚本执行结果
 if [ $? -eq 0 ]; then
     echo "===== python脚本执行成功 ====="
