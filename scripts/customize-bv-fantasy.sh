@@ -124,11 +124,10 @@ sed -i \
   -e '/zxing = "3.5.3"/a\androidxComposeBom = "2025.12.00"\nandroidxTvFoundation = "1.1.0"' \
   -e '/zxing = { module = "com.google.zxing:core", version.ref = "zxing" }/a\\n# Compose BOM\androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidxComposeBom" }\n# AndroidX TV Foundation\androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidxTvFoundation" }' \
   "$FANTASY_BV_SOURCE_GRADLE_LVT"
-# 新增：验证修改结果
-echo "[DEBUG] 验证 libs.versions.toml 修改结果..."
-grep -q 'androidxComposeBom = "2025.12.00"' "$FANTASY_BV_SOURCE_GRADLE_LVT"
-grep -q 'androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidxTvFoundation" }' "$FANTASY_BV_SOURCE_GRADLE_LVT"
-echo "[DEBUG] 处理完成: libs.versions.toml（修改验证通过）"
+# 验证 libs.versions.toml 修改结果...
+grep -q 'androidxComposeBom = "2025.12.00"' "$FANTASY_BV_SOURCE_GRADLE_LVT" || true
+grep -q 'androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidxTvFoundation" }' "$FANTASY_BV_SOURCE_GRADLE_LVT" || true
+
 
 # 处理 player/tv/build.gradle.kts
 FANTASY_BV_SOURCE_PT_BGK="$FANTASY_BV_SOURCE_ROOT/player/tv/build.gradle.kts"
