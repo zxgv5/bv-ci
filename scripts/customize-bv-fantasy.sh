@@ -60,47 +60,53 @@ else
     exit 1
 fi
 
-# ========== 最终修复：处理 libs.versions.toml（增强调试+强化校验+固化sed参数） ==========
+# ========== 修复：处理 libs.versions.toml（增强调试+强化校验） ==========
 FANTASY_BV_SOURCE_GRADLE_LVT="$FANTASY_BV_SOURCE_ROOT/gradle/libs.versions.toml"
-# 新增：调试输出，确认变量和路径（关键！）
 echo "===== 调试 libs.versions.toml 路径 ====="
 echo "FANTASY_BV_SOURCE_ROOT: $FANTASY_BV_SOURCE_ROOT"
 echo "目标文件路径: $FANTASY_BV_SOURCE_GRADLE_LVT"
-# 强化校验：确保变量非空且文件存在
 if [ -z "$FANTASY_BV_SOURCE_GRADLE_LVT" ]; then
     echo "错误：FANTASY_BV_SOURCE_GRADLE_LVT 变量为空！"
     exit 1
 fi
 if [ ! -f "$FANTASY_BV_SOURCE_GRADLE_LVT" ]; then
     echo "错误：libs.versions.toml 文件不存在！"
-    # 新增：打印目录结构，排查源码是否拉取成功
     echo "===== 打印 fantasy-bv-source/gradle 目录结构 ====="
     ls -l "$FANTASY_BV_SOURCE_ROOT/gradle/" || echo "gradle 目录不存在！"
     exit 1
 fi
-# 固化sed命令：确保续行符后无空格，表达式格式正确
 sed -i \
 -e '/zxing = "3.5.3"/a\androidxComposeBom = "2025.12.00"\nandroidxTvFoundation = "1.1.0"' \
 -e '/zxing = { module = "com.google.zxing:core", version.ref = "zxing" }/a\\n# Compose BOM\androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidxComposeBom" }\n# AndroidX TV Foundation\androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidxTvFoundation" }' \
 "$FANTASY_BV_SOURCE_GRADLE_LVT"
 echo "===== libs.versions.toml sed 处理成功 ====="
 
+# ========== 核心修复：处理 player/tv/build.gradle.kts（移除行内注释+添加校验） ==========
 FANTASY_BV_SOURCE_PT_BGK="$FANTASY_BV_SOURCE_ROOT/player/tv/build.gradle.kts"
+echo "===== 调试 player/tv/build.gradle.kts 路径 ====="
+echo "目标文件路径: $FANTASY_BV_SOURCE_PT_BGK"
+if [ -z "$FANTASY_BV_SOURCE_PT_BGK" ]; then
+    echo "错误：FANTASY_BV_SOURCE_PT_BGK 变量为空！"
+    exit 1
+fi
+if [ ! -f "$FANTASY_BV_SOURCE_PT_BGK" ]; then
+    echo "错误：player/tv/build.gradle.kts 文件不存在！"
+    ls -l "$FANTASY_BV_SOURCE_ROOT/player/tv/" || echo "player/tv 目录不存在！"
+    exit 1
+fi
+# 移除行内注释，确保sed参数无干扰
 sed -i \
-  # 1. 在 dependencies 开头添加 Compose BOM 依赖
   -e '/dependencies {/a\    val composeBom = platform(libs.androidx.compose.bom)\n    implementation(composeBom)\n    androidTestImplementation(composeBom)' \
-  # 2. 替换硬编码的 tv-foundation 依赖为 libs 引用
   -e 's/implementation(androidx.compose.tv.foundation)/implementation(libs.androidx.tv.foundation)/' \
   "$FANTASY_BV_SOURCE_PT_BGK"
+echo "===== player/tv/build.gradle.kts sed 处理成功 ====="
 
 # TV端倍速范围调整
-# 使用sed的上下文匹配，确保只修改VideoPlayerPictureMenuItem.PlaySpeed相关的行
 FANTASY_BV_SOURCE_PTSMKDABPTCP_PICTUREMENU="$FANTASY_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/playermenu/PictureMenu.kt"
 sed -i '/VideoPlayerPictureMenuItem\.PlaySpeed ->/,/^[[:space:]]*)/s/range = 0\.25f\.\.3f/range = 0.25f..5f/' "$FANTASY_BV_SOURCE_PTSMKDABPTCP_PICTUREMENU"
 
 # 焦点逻辑更改，首先落到弹幕库上
 FANTASY_BV_SOURCE_PTSMKDABPTC_CONTROLLERVIDEOINFO="$FANTASY_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
-# 使用捕获组保留原缩进
 sed -i 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = focusRequesters["danmaku"] ?: FocusRequester()/' "$FANTASY_BV_SOURCE_PTSMKDABPTC_CONTROLLERVIDEOINFO"
 
 # 隐藏左边 搜索、UGC和PGC 三个侧边栏页面
@@ -121,9 +127,7 @@ sed -i \
 
 # 配合上面隐藏两个导航标签的修改
 FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/HomeContent.kt"
-# 使用perl一次性处理6个多行替换
 perl -i -0777 -pe '
-  # 1. 替换第一个FollowingSeason代码块（已有部分注释）
   s{                HomeTopNavItem\.FollowingSeason -> \{
 //                    if \(followingSeasonViewModel\.followingSeasons\.isEmpty\(\) && userViewModel\.isLogin\) \{
 //                        followingSeasonViewModel\.loadMore\(\)
@@ -133,8 +137,6 @@ perl -i -0777 -pe '
 //                        followingSeasonViewModel.loadMore()
 //                    }
 //                }}sg;
-  
-  # 2. 替换第一个ToView代码块（已有部分注释）
   s{                HomeTopNavItem\.ToView -> \{
 //                    if \(toViewViewModel\.histories\.isEmpty\(\) && userViewModel\.isLogin\) \{
 //                        toViewViewModel\.update\(\)
@@ -144,8 +146,6 @@ perl -i -0777 -pe '
 //                        toViewViewModel.update()
 //                    }
 //                }}sg;
-  
-  # 3. 替换第二个FollowingSeason代码块（完全无注释）
   s{                        HomeTopNavItem\.FollowingSeason -> \{
                             if \(userViewModel\.isLogin\) \{
                                 followingSeasonViewModel\.clearData\(\)
@@ -157,8 +157,6 @@ perl -i -0777 -pe '
 //                                followingSeasonViewModel.loadMore()
 //                            }
 //                        }}sg;
-  
-  # 4. 替换第二个ToView代码块（完全无注释）
   s{                        HomeTopNavItem\.ToView -> \{
                             if \(userViewModel\.isLogin\) \{
                                 toViewViewModel\.clearData\(\)
@@ -170,8 +168,6 @@ perl -i -0777 -pe '
 //                                toViewViewModel.update()
 //                            }
 //                        }}sg;
-  
-  # 5. 替换第三个FollowingSeason代码块（屏幕渲染部分）
   s{                    HomeTopNavItem\.FollowingSeason -> \{
                         if \(userViewModel\.isLogin\) \{
                             FollowingSeasonScreen\(showPageTitle = false\)
@@ -185,8 +181,6 @@ perl -i -0777 -pe '
 //                            LoginRequiredScreen()
 //                        }
 //                    }}sg;
-  
-  # 6. 替换第三个ToView代码块（屏幕渲染部分）
   s{                    HomeTopNavItem\.ToView -> \{
                         if \(userViewModel\.isLogin\) \{
                             ToViewScreen\(showPageTitle = false\)
@@ -207,3 +201,217 @@ sed -i \
   -e 's/^\([[:space:]]*\)HomeTopNavItem\.FollowingSeason -> followingSeasonState$/\1\/\/HomeTopNavItem.FollowingSeason -> followingSeasonState/' \
   -e 's/^\([[:space:]]*\)HomeTopNavItem\.ToView -> toViewState$/\1\/\/HomeTopNavItem.ToView -> toViewState/' \
   "$FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT"
+
+echo "===== 所有自定义脚本执行`libs.versions.toml` 的 `sed` 处理成功**，但紧接着执行 **`player/tv/build.gradle.kts` 的 `sed` 命令时参数异常**，导致输出帮助文档。
+
+### 核心问题根源
+处理 `player/tv/build.gradle.kts` 的 `sed` 命令里，**行内注释（`#` 开头）干扰了参数解析**——bash 会把注释行当成 `sed` 的参数，导致 `-e` 选项和文件路径传递错误，触发帮助文档输出。
+
+### 最终彻底修复方案（针对所有含行内注释的 `sed` 命令）
+需要移除 **`player/tv/build.gradle.kts` 对应 `sed` 命令中的行内注释**，并添加路径校验，以下是完整修复脚本：
+```bash
+#!/bin/bash
+# customize-bv-fantasy.sh
+
+set -e  # 遇到错误立即退出，避免CI静默失败
+
+FANTASY_BV_SOURCE_ROOT="$GITHUB_WORKSPACE/fantasy-bv-source"
+
+# 修改 AppConfiguration.kt 中的配置项
+# 版本号规则调整，避免负数
+# 修改包名
+
+FANTASY_BV_SOURCE_BSMK_APPCONFIGURATION="$FANTASY_BV_SOURCE_ROOT/buildSrc/src/main/kotlin/AppConfiguration.kt"
+sed -i \
+  -e 's/"git rev-list --count HEAD".exec().toInt() - 5/"git rev-list --count HEAD".exec().toInt() + 1/' \
+  -e 's/const val applicationId = "dev.aaa1115910.bv2"/const val applicationId = "dev.fantasy.bv"/' \
+  "$FANTASY_BV_SOURCE_BSMK_APPCONFIGURATION"
+
+# 修改应用名
+FANTASY_BV_SOURCE_ASSDRV_STRINGS="$FANTASY_BV_SOURCE_ROOT/app/shared/src/debug/res/values/strings.xml"
+sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV Debug.*<\/string>/<string name="app_name">fantasy Debug<\/string>/' "$FANTASY_BV_SOURCE_ASSDRV_STRINGS"
+
+FANTASY_BV_SOURCE_ASSMRV_STRINGS="$FANTASY_BV_SOURCE_ROOT/app/shared/src/main/res/values/strings.xml"
+sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV.*<\/string>/<string name="app_name">fantasy<\/string>/' "$FANTASY_BV_SOURCE_ASSMRV_STRINGS"
+
+FANTASY_BV_SOURCE_ASSRRV_STRINGS="$FANTASY_BV_SOURCE_ROOT/app/shared/src/r8Test/res/values/strings.xml"
+sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string>/<string name="app_name">fantasy R8 Test<\/string>/' "$FANTASY_BV_SOURCE_ASSRRV_STRINGS"
+
+# 尝试修复“动态”页面长按下方向键焦点左移出视频选择区的问题
+# 先修改DynamicsScreen.kt源代码
+FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt"
+CI_CUSTOMIZE_SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT="$CI_CUSTOMIZE_SCRIPTS_DIR/modify_bv_fantasy_dynamics_screen.py"
+echo "脚本所在目录：$CI_CUSTOMIZE_SCRIPTS_DIR"
+# 1. 检查python环境（确保ci已安装python3）
+echo "===== 检查python环境 ====="
+if ! command -v python3 &> /dev/null; then
+    echo "错误：未找到python3，请检查ci流程中的python安装步骤！"
+    exit 1
+fi
+python3 --version  # 输出版本，便于调试
+echo "===== 准备执行python脚本：$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT ====="
+# 2. 检查python脚本是否存在
+if [ ! -f "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" ]; then
+    echo "错误：python脚本 $FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT 不存在！"
+    exit 1
+fi
+# 3. 检查目标kotlin文件是否存在
+if [ ! -f "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN" ]; then
+    echo "错误：目标文件 $FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN 不存在！"
+    exit 1
+fi
+# 4. 执行python脚本（传递目标文件路径作为【位置参数】，去掉--target-file）
+echo "===== 执行python脚本处理DynamicsScreen.kt ====="
+python3 "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" "$FANTASY_BV_SOURCE_PTSMKDABPTCP_ATSMKDABTSMH_DYNAMICSSCREEN"
+# 5. 校验python脚本执行结果
+if [ $? -eq 0 ]; then
+    echo "===== python脚本执行成功 ====="
+else
+    echo "错误：python脚本执行失败！"
+    exit 1
+fi
+
+# ========== 修复：处理 libs.versions.toml（增强调试+强化校验） ==========
+FANTASY_BV_SOURCE_GRADLE_LVT="$FANTASY_BV_SOURCE_ROOT/gradle/libs.versions.toml"
+echo "===== 调试 libs.versions.toml 路径 ====="
+echo "FANTASY_BV_SOURCE_ROOT: $FANTASY_BV_SOURCE_ROOT"
+echo "目标文件路径: $FANTASY_BV_SOURCE_GRADLE_LVT"
+if [ -z "$FANTASY_BV_SOURCE_GRADLE_LVT" ]; then
+    echo "错误：FANTASY_BV_SOURCE_GRADLE_LVT 变量为空！"
+    exit 1
+fi
+if [ ! -f "$FANTASY_BV_SOURCE_GRADLE_LVT" ]; then
+    echo "错误：libs.versions.toml 文件不存在！"
+    echo "===== 打印 fantasy-bv-source/gradle 目录结构 ====="
+    ls -l "$FANTASY_BV_SOURCE_ROOT/gradle/" || echo "gradle 目录不存在！"
+    exit 1
+fi
+sed -i \
+-e '/zxing = "3.5.3"/a\androidxComposeBom = "2025.12.00"\nandroidxTvFoundation = "1.1.0"' \
+-e '/zxing = { module = "com.google.zxing:core", version.ref = "zxing" }/a\\n# Compose BOM\androidx-compose-bom = { module = "androidx.compose:compose-bom", version.ref = "androidxComposeBom" }\n# AndroidX TV Foundation\androidx-tv-foundation = { module = "androidx.tv:tv-foundation", version.ref = "androidxTvFoundation" }' \
+"$FANTASY_BV_SOURCE_GRADLE_LVT"
+echo "===== libs.versions.toml sed 处理成功 ====="
+
+# ========== 核心修复：处理 player/tv/build.gradle.kts（移除行内注释+添加校验） ==========
+FANTASY_BV_SOURCE_PT_BGK="$FANTASY_BV_SOURCE_ROOT/player/tv/build.gradle.kts"
+echo "===== 调试 player/tv/build.gradle.kts 路径 ====="
+echo "目标文件路径: $FANTASY_BV_SOURCE_PT_BGK"
+if [ -z "$FANTASY_BV_SOURCE_PT_BGK" ]; then
+    echo "错误：FANTASY_BV_SOURCE_PT_BGK 变量为空！"
+    exit 1
+fi
+if [ ! -f "$FANTASY_BV_SOURCE_PT_BGK" ]; then
+    echo "错误：player/tv/build.gradle.kts 文件不存在！"
+    ls -l "$FANTASY_BV_SOURCE_ROOT/player/tv/" || echo "player/tv 目录不存在！"
+    exit 1
+fi
+# 移除行内注释，确保sed参数无干扰
+sed -i \
+  -e '/dependencies {/a\    val composeBom = platform(libs.androidx.compose.bom)\n    implementation(composeBom)\n    androidTestImplementation(composeBom)' \
+  -e 's/implementation(androidx.compose.tv.foundation)/implementation(libs.androidx.tv.foundation)/' \
+  "$FANTASY_BV_SOURCE_PT_BGK"
+echo "===== player/tv/build.gradle.kts sed 处理成功 ====="
+
+# TV端倍速范围调整
+FANTASY_BV_SOURCE_PTSMKDABPTCP_PICTUREMENU="$FANTASY_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/playermenu/PictureMenu.kt"
+sed -i '/VideoPlayerPictureMenuItem\.PlaySpeed ->/,/^[[:space:]]*)/s/range = 0\.25f\.\.3f/range = 0.25f..5f/' "$FANTASY_BV_SOURCE_PTSMKDABPTCP_PICTUREMENU"
+
+# 焦点逻辑更改，首先落到弹幕库上
+FANTASY_BV_SOURCE_PTSMKDABPTC_CONTROLLERVIDEOINFO="$FANTASY_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
+sed -i 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = focusRequesters["danmaku"] ?: FocusRequester()/' "$FANTASY_BV_SOURCE_PTSMKDABPTC_CONTROLLERVIDEOINFO"
+
+# 隐藏左边 搜索、UGC和PGC 三个侧边栏页面
+FANTASY_BV_SOURCE_ATSMKDABTSM_DRAWERCONTENT="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/DrawerContent.kt"
+sed -i \
+  -e 's/^\([[:space:]]*\)DrawerItem\.Search,/\1\/\/DrawerItem.Search,/' \
+  -e 's/^\([[:space:]]*\)DrawerItem\.UGC,/\1\/\/DrawerItem.UGC,/' \
+  -e 's/^\([[:space:]]*\)DrawerItem\.PGC,/\1\/\/DrawerItem.PGC,/' \
+  "$FANTASY_BV_SOURCE_ATSMKDABTSM_DRAWERCONTENT"
+
+# 隐藏顶上 追番 、 稍后看 两个导航标签
+FANTASY_BV_SOURCE_ATSMKDABTC_TOPNAV="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/component/TopNav.kt"
+sed -i \
+  -e 's/^\([[:space:]]*\)Favorite("收藏"),[[:space:]]*$/\1Favorite("收藏");/' \
+  -e 's/^\([[:space:]]*\)FollowingSeason("追番"),[[:space:]]*$/\/\/\1FollowingSeason("追番"),/' \
+  -e 's/^\([[:space:]]*\)ToView("稍后看");[[:space:]]*$/\/\/\1ToView("稍后看");/' \
+  "$FANTASY_BV_SOURCE_ATSMKDABTC_TOPNAV"
+
+# 配合上面隐藏两个导航标签的修改
+FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/HomeContent.kt"
+perl -i -0777 -pe '
+  s{                HomeTopNavItem\.FollowingSeason -> \{
+//                    if \(followingSeasonViewModel\.followingSeasons\.isEmpty\(\) && userViewModel\.isLogin\) \{
+//                        followingSeasonViewModel\.loadMore\(\)
+//                    \}
+                \}}{//                HomeTopNavItem.FollowingSeason -> {
+//                    if (followingSeasonViewModel.followingSeasons.isEmpty() && userViewModel.isLogin) {
+//                        followingSeasonViewModel.loadMore()
+//                    }
+//                }}sg;
+  s{                HomeTopNavItem\.ToView -> \{
+//                    if \(toViewViewModel\.histories\.isEmpty\(\) && userViewModel\.isLogin\) \{
+//                        toViewViewModel\.update\(\)
+//                    \}
+                \}}{//                HomeTopNavItem.ToView -> {
+//                    if (toViewViewModel.histories.isEmpty() && userViewModel.isLogin) {
+//                        toViewViewModel.update()
+//                    }
+//                }}sg;
+  s{                        HomeTopNavItem\.FollowingSeason -> \{
+                            if \(userViewModel\.isLogin\) \{
+                                followingSeasonViewModel\.clearData\(\)
+                                followingSeasonViewModel\.loadMore\(\)
+                            \}
+                        \}}{//                        HomeTopNavItem.FollowingSeason -> {
+//                            if (userViewModel.isLogin) {
+//                                followingSeasonViewModel.clearData()
+//                                followingSeasonViewModel.loadMore()
+//                            }
+//                        }}sg;
+  s{                        HomeTopNavItem\.ToView -> \{
+                            if \(userViewModel\.isLogin\) \{
+                                toViewViewModel\.clearData\(\)
+                                toViewViewModel\.update\(\)
+                            \}
+                        \}}{//                        HomeTopNavItem.ToView -> {
+//                            if (userViewModel.isLogin) {
+//                                toViewViewModel.clearData()
+//                                toViewViewModel.update()
+//                            }
+//                        }}sg;
+  s{                    HomeTopNavItem\.FollowingSeason -> \{
+                        if \(userViewModel\.isLogin\) \{
+                            FollowingSeasonScreen\(showPageTitle = false\)
+                        \} else \{
+                            LoginRequiredScreen\(\)
+                        \}
+                    \}}{//                    HomeTopNavItem.FollowingSeason -> {
+//                        if (userViewModel.isLogin) {
+//                            FollowingSeasonScreen(showPageTitle = false)
+//                        } else {
+//                            LoginRequiredScreen()
+//                        }
+//                    }}sg;
+  s{                    HomeTopNavItem\.ToView -> \{
+                        if \(userViewModel\.isLogin\) \{
+                            ToViewScreen\(showPageTitle = false\)
+                        \} else \{
+                            LoginRequiredScreen\(\)
+                        \}
+                    \}}{//                    HomeTopNavItem.ToView -> {
+//                        if (userViewModel.isLogin) {
+//                            ToViewScreen(showPageTitle = false)
+//                        } else {
+//                            LoginRequiredScreen()
+//                        }
+//                    }}sg;
+' "$FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT"
+
+# 还有两行没有注释掉，补上
+sed -i \
+  -e 's/^\([[:space:]]*\)HomeTopNavItem\.FollowingSeason -> followingSeasonState$/\1\/\/HomeTopNavItem.FollowingSeason -> followingSeasonState/' \
+  -e 's/^\([[:space:]]*\)HomeTopNavItem\.ToView -> toViewState$/\1\/\/HomeTopNavItem.ToView -> toViewState/' \
+  "$FANTASY_BV_SOURCE_ATSMKDABTSM_HOMECONTENT"
+
+echo "===== 所有自定义脚本执行完成 ====="
