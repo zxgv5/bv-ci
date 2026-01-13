@@ -12,7 +12,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-
       - name: Clean runner environment
         run: |
           # 清理可能存在的全局缓存文件
@@ -61,7 +60,10 @@ jobs:
       - name: Configure signing properties
         working-directory: ./zipxtract_source
         run: |
-          # Append signing configuration to gradle.properties
+          # 确保gradle.properties末尾有换行，防止内容粘连
+          [ -f gradle.properties ] || touch gradle.properties
+          echo "" >> gradle.properties
+          # 追加签名配置
           cat >> gradle.properties << EOF
           releaseSigningEnabled=true
           releaseStoreFile=${{ env.KEYSTORE_PATH }}
