@@ -60,6 +60,19 @@ jobs:
           KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
           EOF
 
+      # How to Build Octodroid
+      # Ensure Android SDK platform and build-tools are installed
+      # Register an application for your OctoDroid usage under your GitHub settings
+      # naming is up to you
+      # callback URL must be gh4a://oauth
+      # Create a client.properties file with the following content:
+      # ClientId="<CLIENT ID DISPLAYED IN APPLICATION SETTINGS>"
+      # ClientSecret="<CLIENT SECRET DISPLAYED IN APPLICATION SETTINGS>"
+      # Build using Gradle
+      # ./gradlew assembleDebug
+      # To get a full list of available tasks
+      # ./gradlew tasks
+
       - name: Create client properties
         working-directory: ./gh4a_source
         run: |
