@@ -64,12 +64,12 @@ jobs:
         working-directory: ./gh4a_source
         run: |
           cat > client.properties << 'EOF'
-          ClientId=${{ secrets.CLIENT_ID }}
-          ClientSecret=${{ secrets.CLIENT_SECRET }}
+          ClientId="${{ secrets.BUILD_GH4A_NEED_CLIENT_ID }}"
+          ClientSecret="${{ secrets.BUILD_GH4A_NEED_CLIENT_SECRET }}"
           EOF
           echo "client.properties content:"
           cat client.properties
-          echo "client.properties location: $(pwd)/client.properties"
+          echo "client.properties created at: $(pwd)/client.properties"
 
       - name: Verify files exist
         working-directory: ./gh4a_source
