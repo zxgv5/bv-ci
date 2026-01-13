@@ -28,9 +28,9 @@ sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string
 # 尝试使用python修复“动态”页长按下方向键焦点左移出区问题
 # 需要对如下四个文件进行修改
 # /gradle/libs.versions.toml、/app/build.gradle.kts、/app/tv/build.gradle.kts 和 /app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt
-FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt"
-CI_CUSTOMIZE_SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT="$CI_CUSTOMIZE_SCRIPTS_DIR/modify_bv_fantasy_dynamics_screen.py"
+# FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt"
+# CI_CUSTOMIZE_SCRIPTS_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT="$CI_CUSTOMIZE_SCRIPTS_DIR/modify_bv_fantasy_dynamics_screen.py"
 # echo "尝试使用python修复“动态”页长按下方向键焦点左移出区问题"
 # python3 "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" "$FANTASY_BV_SOURCE_ROOT"
 # 5. 校验python脚本执行结果
@@ -40,9 +40,22 @@ FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT="$CI_CUSTOMIZE_SCRIP
 #     echo "python脚本执行失败！"
 #     exit 1
 # fi
- 
-echo "尝试使用python修复“动态”页长按下方向键焦点左移出区问题"
-python3 "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN_PYTHON_SCRIPT" "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"
+
+FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt"
+CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="/scripts/ci_DynamicsScreen.kt"
+if [ ! -f "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" ]; then
+    echo "❌ 错误：源文件 $CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN 不存在"
+    exit 1
+fi
+
+cp -f "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"
+
+if [ -f "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" ] && cmp -s "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"; then
+    echo "🎉 成功：用 $CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN 覆盖 $FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"
+else
+    echo "❌ 失败：文件覆盖未生效"
+    exit 1
+fi
  
 # TV端倍速范围调整
 # 使用sed的上下文匹配，确保只修改VideoPlayerPictureMenuItem.PlaySpeed相关的行
