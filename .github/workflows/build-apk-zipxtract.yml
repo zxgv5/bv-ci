@@ -1,0 +1,98 @@
+name: build-apk-zipxtract
+
+on:
+  workflow_dispatch:
+env:
+  ANDROID_COMPILE_SDK: '35'
+  ANDROID_BUILD_TOOLS: '35.0.0'
+  JDK_VERSION: '21'
+  JDK_DISTRIBUTION: 'temurin'
+  KEYSTORE_PATH: "$GITHUB_WORKSPACE/zipxtract_source/keystore.p12"
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Clean runner environment
+        run: |
+          # 清理可能存在的全局缓存文件
+          rm -rf ~/.gradle/caches/transforms-*
+          rm -rf ~/.android/build-cache/
+
+      - name: Checkout source repo
+        uses: actions/checkout@main
+        with:
+          repository: WirelessAlien/ZipXtract
+          ref: master
+          path: zipxtract_source
+          fetch-depth: 0
+
+      - name: Setup jdk
+        uses: actions/setup-java@main
+        with:
+          java-version: "${{ env.JDK_VERSION }}"
+          distribution: "${{ env.JDK_DISTRIBUTION }}"
+
+      - name: Initialize build environment
+        id: init
+        run: |
+          echo "BUILD_DATE=$(date -u +'%Y%m%d_%H%M%S')" >> $GITHUB_ENV
+          echo "RELEASE_TYPE=release" >> $GITHUB_ENV
+          echo "BUILD_FLAVOR=ps" >> $GITHUB_ENV
+          
+          # Get version info from build.gradle
+          VERSION_CODE=$(grep 'versionCode' app/build.gradle | head -1 | awk '{print $2}')
+          VERSION_NAME=$(grep 'versionName' app/build.gradle | head -1 | awk -F\" '{print $2}')
+          echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
+          echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
+
+      - name: Setup keystore for signing
+        run: |
+          cat > keystore.properties << EOF
+          storeFile=${{ env.KEYSTORE_PATH }}
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+          # Decode and save keystore file
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ env.KEYSTORE_PATH }}
+
+      - name: Configure signing properties
+        run: |
+          # Append signing configuration to gradle.properties
+          cat >> gradle.properties << EOF
+          releaseSigningEnabled=true
+          releaseStoreFile=${{ env.KEYSTORE_PATH }}
+          releaseStorePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          releaseKeyAlias=${{ secrets.KEY_ALIAS }}
+          releaseKeyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Build ps release
+        run: |
+          echo "Building PS release..."
+          ./gradlew assemblePsRelease
+
+      - name: Find generated apks
+        run: |
+          echo "Looking for APK files..."
+          PS_APK=$(find . -name "*ps*release*.apk" -type f | head -1)
+          if [ -n "$PS_APK" ]; then
+            echo "Found PS APK: $PS_APK"
+            echo "ps_apk=$PS_APK" >> $GITHUB_OUTPUT
+            echo "PS_APK_PATH=$PS_APK" >> $GITHUB_ENV
+            mv "$PS_APK" "$GITHUB_WORKSPACE/zipxtract_source/zipxtract-${{ env.BUILD_DATE }}.apk"
+          fi
+          # Count total APKs
+          APK_COUNT=$(find . -name "*release*.apk" -type f | wc -l)
+          echo "Total APK files found: $APK_COUNT"
+          echo "APK_COUNT=$APK_COUNT" >> $GITHUB_ENV
+
+      - name: Erase keystore, encrypt package and create release
+        uses: ./ci-source/.github/actions/erase-aes256pac-release/
+        with:
+          # 私钥文件路径（基于github.workspace的绝对路径）
+          P12_KEYSTORE_PATH: "./zipxtract_source/keystore.p12"
+          ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
+          BUILD_ARTIFACT_PATH: "./zipxtract_source/zipxtract-${{ env.BUILD_DATE }}.apk"
+          RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-zipxtract"
