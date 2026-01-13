@@ -91,23 +91,38 @@ jobs:
             echo "Found release APK: $RELEASE_APK"
             echo "RELEASE_APK=$RELEASE_APK" >> $GITHUB_ENV
             echo "apk_path=$RELEASE_APK" >> $GITHUB_OUTPUT
-            # 核心命令：重命名文件（-f 强制覆盖同名文件，避免冲突）
-            mv -f "${{ env.RELEASE_APK }}" "${{ dirname(env.RELEASE_APK) }}/gh4a-${{ env.BUILD_DATE }}.apk"
           else
             echo "No release APK found"
             exit 1
+          fi
+
+      - name: Rename release apk
+        shell: bash
+        if: ${{ env.RELEASE_APK != '' && fileExists(env.RELEASE_APK) }}
+        run: |
+          SRC_RELEASE_APK_PATH_NAME=$(dirname "${{ env.RELEASE_APK }}")
+          DST_RELEASE_APK_PATH_NAME="$SRC_RELEASE_APK_PATH_NAME/gh4a-${{ env.BUILD_DATE }}.apk"
+          # 3. 强制重命名
+          mv -f "${{ env.RELEASE_APK }}" "$DST_RELEASE_APK_PATH_NAME"
+          # 4. 验证结果+传递环境变量
+          if [ -f "$DST_RELEASE_APK_PATH_NAME" ]; then
+              echo "✅ 重命名成功：$DST_RELEASE_APK_PATH_NAME"
+              echo "RENAMED_APK=$DST_RELEASE_APK_PATH_NAME" >> "$GITHUB_ENV"
+          else
+              echo "❌ 重命名失败"
+              exit 1
           fi
 
       - name: Verify apk signature
         run: |
           export ANDROID_HOME=/usr/local/lib/android/sdk
           export PATH="$ANDROID_HOME/build-tools/${{ env.ANDROID_BUILD_TOOLS }}:$PATH"
-          apksigner verify --verbose "${{ env.RELEASE_APK }}"
+          apksigner verify --verbose "${{ env.RENAMED_APK }}"
 
       - name: Erase keystore, encrypt package and create release
         uses: ./ci-source/.github/actions/erase-aes256pac-release/
         with:
           P12_KEYSTORE_PATH: "${{ env.KEYSTORE_PATH }}"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
-          BUILD_ARTIFACT_PATH: ${{ dirname(env.RELEASE_APK) }}/gh4a-${{ env.BUILD_DATE }}.apk"
+          BUILD_ARTIFACT_PATH: ${{ env.RENAMED_APK }}"
           RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-gh4a"
