@@ -62,23 +62,22 @@ fun DynamicsScreen(
     dynamicViewModel: DynamicViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     var currentFocusedIndex by remember { mutableIntStateOf(-1) }
-    val gridColumns = 4 //与GridCells.Fixed(4)保持一致
-
-    //优化加载触发条件：提前6项开始加载，避免列表项缺失
+    // 优化加载触发时机，提前6项开始加载（原12项，减少数据滞后）
     val shouldLoadMore by remember {
-        derivedStateOf {
-            dynamicViewModel.dynamicVideoList.isNotEmpty() &&
-                    currentFocusedIndex != -1 &&
-                    currentFocusedIndex + 6 > dynamicViewModel.dynamicVideoList.size &&
-                    !dynamicViewModel.loadingVideo
+        derivedStateOf { 
+            dynamicViewModel.dynamicVideoList.isNotEmpty() && 
+            currentFocusedIndex + 6 > dynamicViewModel.dynamicVideoList.size &&
+            !dynamicViewModel.loadingVideo // 避免重复加载
         }
     }
-
     val showTip by remember {
         derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex >= 0 }
+    }
+    // 新增：获取列表最大有效索引
+    val maxValidIndex by remember {
+        derivedStateOf { dynamicViewModel.dynamicVideoList.size - 1 }
     }
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
@@ -88,7 +87,6 @@ fun DynamicsScreen(
             proxyArea = ProxyArea.checkProxyArea(dynamic.title)
         )
     }
-
     val onLongClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         UpInfoActivity.actionStart(
             context,
@@ -98,18 +96,8 @@ fun DynamicsScreen(
         )
     }
 
-    //预加载触发：更早、更及时补充列表项
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
-            scope.launch(Dispatchers.IO) {
-                dynamicViewModel.loadMoreVideo()
-            }
-        }
-    }
-
-    //初始预加载：进入页面就加载足够多的项
-    LaunchedEffect(Unit) {
-        if (dynamicViewModel.isLogin && dynamicViewModel.dynamicVideoList.size < 20) {
             scope.launch(Dispatchers.IO) {
                 dynamicViewModel.loadMoreVideo()
             }
@@ -119,7 +107,6 @@ fun DynamicsScreen(
     if (dynamicViewModel.isLogin) {
         val padding = dimensionResource(R.dimen.grid_padding)
         val spacedBy = dimensionResource(R.dimen.grid_spacedBy)
-
         if (showTip) {
             Text(
                 modifier = Modifier.fillMaxWidth().offset(x = (-20).dp, y = (-8).dp),
@@ -129,37 +116,35 @@ fun DynamicsScreen(
                 textAlign = TextAlign.End
             )
         }
-
         ProvideListBringIntoViewSpec {
             LazyVerticalGrid(
                 modifier = modifier
                     .fillMaxSize()
-                    .onFocusChanged {
+                    .onFocusChanged{
                         if (!it.isFocused) {
                             currentFocusedIndex = -1
                         }
                     }
+                    // 新增：拦截下键，避免无数据时焦点溢出
                     .onPreviewKeyEvent { event ->
-                        //拦截下方向键：无下一项且加载中时，阻止焦点移动
-                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
-                            val currentListSize = dynamicViewModel.dynamicVideoList.size
-                            if (currentFocusedIndex != -1 && currentListSize > 0) {
-                                val nextIndex = currentFocusedIndex + gridColumns
-                                //判断是否有下一项，或是否正在加载
-                                if (nextIndex >= currentListSize && dynamicViewModel.loadingVideo) {
-                                    //无下一项且加载中，阻止焦点移动
-                                    return@onPreviewKeyEvent true
-                                }
-                            }
-                        }
-                        //Menu键跳转逻辑保留
-                        if (event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
+                        // 处理菜单键（原有逻辑保留）
+                        if(event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
                             context.startActivity(Intent(context, FollowActivity::class.java))
                             return@onPreviewKeyEvent true
                         }
+                        // 新增：拦截向下键（当已到最后一项且无更多数据/加载中）
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                            val isLastItem = currentFocusedIndex == maxValidIndex
+                            val noMoreData = !dynamicViewModel.videoHasMore
+                            val isLoading = dynamicViewModel.loadingVideo
+                            // 已到末尾且无更多/加载中，拦截下键
+                            if (isLastItem && (noMoreData || isLoading)) {
+                                return@onPreviewKeyEvent true
+                            }
+                        }
                         false
                     },
-                columns = GridCells.Fixed(gridColumns),
+                columns = GridCells.Fixed(4),
                 state = lazyGridState,
                 contentPadding = PaddingValues(padding),
                 verticalArrangement = Arrangement.spacedBy(spacedBy),
@@ -183,43 +168,31 @@ fun DynamicsScreen(
                         },
                         onClick = { onClickVideo(item) },
                         onLongClick = { onLongClickVideo(item) },
-                        onFocus = {
-                            //强制更新焦点索引，避免快速操作时滞后
-                            currentFocusedIndex = index
+                        // 新增：索引边界校验，避免焦点越界
+                        onFocus = { 
+                            if (index <= maxValidIndex) {
+                                currentFocusedIndex = index 
+                            }
                         }
                     )
                 }
-
-                //加载提示
+                // 加载中和无更多数据的item（原有逻辑保留）
                 if (dynamicViewModel.loadingVideo) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Box(
-                            modifier = Modifier.fillMaxSize(),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             LoadingTip()
                         }
                     }
                 }
-
-                //无更多数据提示
-                if (!dynamicViewModel.videoHasMore && !dynamicViewModel.loadingVideo) {
+                if (!dynamicViewModel.videoHasMore) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
-                        Text(
-                            modifier = Modifier.fillMaxWidth().align(Alignment.Center),
-                            text = "没有更多了捏",
-                            color = Color.White,
-                            textAlign = TextAlign.Center
-                        )
+                        Text(text = "没有更多了捏", color = Color.White)
                     }
                 }
             }
         }
     } else {
-        Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-        ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text(text = "请先登录")
         }
     }
