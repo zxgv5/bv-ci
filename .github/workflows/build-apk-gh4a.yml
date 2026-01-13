@@ -98,7 +98,6 @@ jobs:
 
       - name: Rename release apk
         shell: bash
-        if: ${{ env.RELEASE_APK != '' && fileExists(env.RELEASE_APK) }}
         run: |
           SRC_RELEASE_APK_PATH_NAME=$(dirname "${{ env.RELEASE_APK }}")
           DST_RELEASE_APK_PATH_NAME="$SRC_RELEASE_APK_PATH_NAME/gh4a-${{ env.BUILD_DATE }}.apk"
