@@ -75,6 +75,7 @@ runs:
         fi
 
     - name: Create github release
+      shell: bash
       run: |
         pwd
         echo "${{ github.workspace }}/${{ inputs.BUILD_ARTIFACT_PATH }}.7z"
