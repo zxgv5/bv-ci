@@ -9,8 +9,8 @@ permissions:
 
 env:
   GITHUB_TOKEN: "${{secrets.GITHUB_TOKEN}}"
-  BUILD_JSON_PATH: "./build.json"
-  STORE_FILE_PATH: "./tmp/app-release.keystore"
+  BUILD_JSON_PATH: "${{ github.workspace }}/build.json"
+  STORE_FILE_PATH: "${{ github.workspace }}/tmp/app-release.keystore"
   KEYSTORE_PASSWORD: "${{secrets.KEYSTORE_PASSWORD}}"
   KEY_ALIAS: "${{secrets.KEY_ALIAS}}"
   KEY_PASSWORD: "${{secrets.KEY_PASSWORD}}"
