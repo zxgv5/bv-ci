@@ -64,18 +64,16 @@ jobs:
         # echo "signing.properties content (passwords masked):"
         # sed 's/password=.*/password=***/g' signing.properties
 
-    - name: Make gradlew executable
-      working-directory: ./materialfiles-source
-      run: chmod +x ./gradlew
-
     - name: Build release apk files
       working-directory: ./materialfiles-source
-      run: ./gradlew assembleRelease
-      env:
-        STORE_FILE: ${{ env.STORE_FILE }}
-        STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+      run: |
+        chmod +x ./gradlew
+        ./gradlew assembleRelease
+      # env:
+      #   STORE_FILE: ${{ env.STORE_FILE }}
+      #   STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+      #   KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      #   KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
 
     - name: Find apk files and rename
       id: find-apk
@@ -96,7 +94,7 @@ jobs:
       uses: ./ci-source/.github/actions/erase-aes256pac-release/
       with:
         # 文件路径（基于github.workspace的绝对路径）
-        P12_KEYSTORE_PATH: "/materialfiles-source/keystore.p12 /materialfiles-source/signing.properties"
+        P12_KEYSTORE_PATH: "/keystore.p12 /signing.properties"
         ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
-        BUILD_ARTIFACT_PATH: "/materialfiles-source/materialfiles-${{ env.BUILD_DATE }}.apk"
+        BUILD_ARTIFACT_PATH: "/materialfiles-${{ env.BUILD_DATE }}.apk"
         RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-materialfiles"
