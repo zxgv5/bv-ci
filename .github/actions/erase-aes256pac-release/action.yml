@@ -79,4 +79,4 @@ runs:
         tag_name: ${{ inputs.RELEASE_TAG_NAME }}
         draft: false
         prerelease: false
-        files: ${{ inputs.BUILD_ARTIFACT_PATH }}.7z
+        files: "${{ github.workspace }}/${{ inputs.BUILD_ARTIFACT_PATH }}.7z"
