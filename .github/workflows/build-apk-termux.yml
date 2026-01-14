@@ -23,6 +23,11 @@ jobs:
           repository: termux/termux-app
           ref: master
 
+      - name: Checkout ci source repo (self)
+        uses: actions/checkout@main
+        with:
+          path: ci-source
+
       - name: Initialization values
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
@@ -200,13 +205,11 @@ jobs:
           
           mv "$APK_DIR_PATH/${APK_BASENAME_PREFIX}_universal.apk" "$APK_DIR_PATH/termux-$BUILD_DATE.apk"
 
-      - name: Create github release & upload apk
-        uses: softprops/action-gh-release@master
+      - name: Erase keystore, encrypt package and create release
+        uses: ./ci-source/.github/actions/erase-aes256pac-release/
         with:
-          tag_name: ${{env.BUILD_DATE}}-termux
-          files: |
-            ${{ env.APK_DIR_PATH }}/termux-${{ env.BUILD_DATE }}.apk
-            # ${{ env.APK_DIR_PATH }}/${{ env.APK_BASENAME_PREFIX }}_universal.apk
-            # ${{ env.APK_DIR_PATH }}/output-metadata.json
-          draft: false
-          prerelease: false
+          # 私密文件路径（基于github.workspace的绝对路径）
+          P12_KEYSTORE_PATH: "/keystore.p12"
+          ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
+          BUILD_ARTIFACT_PATH: "${{ env.APK_DIR_PATH }}/termux-${{ env.BUILD_DATE }}.apk"
+          RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-termux"
