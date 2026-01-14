@@ -84,8 +84,9 @@ jobs:
         with:
           node-version: 'lts/*'
 
+      # app-release.keystore和build.json的路径都在构建文件中被硬编码了
+      # "./tmp/app-release.keystore" 和 "./build.json"
       - name: Add keystore and build.json from secrets
-        working-directory: ./acode_source
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ env.STORE_FILE_PATH }}"
           echo "${{ secrets.ACODE_BUILD_JSON_CONTENT }}" | base64 -d > "${{ env.BUILD_JSON_PATH }}"
@@ -263,7 +264,7 @@ jobs:
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
           # 文件路径为基于github.workspace的绝对路径
-          P12_KEYSTORE_PATH: "./acode_source/${{ env.STORE_FILE_PATH }} ./acode_source/${{ env.BUILD_JSON_PATH }}"
+          P12_KEYSTORE_PATH: "./${{ env.STORE_FILE_PATH }} ./${{ env.BUILD_JSON_PATH }}"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
           BUILD_ARTIFACT_PATH: "./acode_source/tmp/acode-${{ env.BUILD_DATE }}.apk"
           RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-acode"
