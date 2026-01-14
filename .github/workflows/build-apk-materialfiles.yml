@@ -40,10 +40,10 @@ jobs:
         distribution: 'temurin'
         java-version: '21'
 
-      - name: Customize scripts
-        run: |
-          chmod +x $GITHUB_WORKSPACE/ci_source/scripts/customize-materialfiles.sh
-          $GITHUB_WORKSPACE/ci_source/scripts/customize-materialfiles.sh
+    - name: Customize scripts
+      run: |
+        chmod +x $GITHUB_WORKSPACE/ci_source/scripts/customize-materialfiles.sh
+        $GITHUB_WORKSPACE/ci_source/scripts/customize-materialfiles.sh
 
     - name: Decode keystore and create signing.properties
       working-directory: ./materialfiles_source
