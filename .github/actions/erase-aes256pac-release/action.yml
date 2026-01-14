@@ -43,16 +43,8 @@ runs:
       working-directory: ${{ github.workspace }}
       run: |
         set -e
-        # 更新包源并安装7zip（精简安装，避免冗余）
         sudo apt-get update -y
         sudo apt-get install -y --no-install-recommends p7zip-full
-        # 校验7zip安装结果
-        if command -v 7z &> /dev/null; then
-          echo "✅ 7zip安装成功，版本：$(7z --version | head -n1)"
-        else
-          echo "❌ 7zip安装失败"
-          exit 1
-        fi
 
     - name: Create aes256 archive with filename encryption
       shell: bash
