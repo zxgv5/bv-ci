@@ -26,7 +26,7 @@ jobs:
       - name: Checkout ci source repo (self)
         uses: actions/checkout@main
         with:
-          path: ci-source
+          path: ci_source
 
       - name: Initialization values
         run: |
@@ -206,7 +206,7 @@ jobs:
           mv "$APK_DIR_PATH/${APK_BASENAME_PREFIX}_universal.apk" "$APK_DIR_PATH/termux-$BUILD_DATE.apk"
 
       - name: Erase keystore, encrypt package and create release
-        uses: ./ci-source/.github/actions/erase-aes256pac-release/
+        uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
           # 私密文件路径（基于github.workspace的绝对路径）
           P12_KEYSTORE_PATH: "/keystore.p12"

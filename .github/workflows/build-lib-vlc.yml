@@ -26,7 +26,7 @@ jobs:
         uses: actions/checkout@main
         with:
           # 指定一个子目录放ci仓库，避免与源仓库混淆
-          path: ci-source
+          path: ci_source
 
       - name: Initialization values
         run: |
@@ -93,8 +93,8 @@ jobs:
           time ./buildsystem/compile.sh -l -a arm64 --release -t 2>&1 | tee build_arm64.log
           # 构建完成后修改源代码
           echo "构建完成，开始修改VLC源代码..."
-          chmod +x $GITHUB_WORKSPACE/ci-source/scripts/customize-vlc.sh
-          $GITHUB_WORKSPACE/ci-source/scripts/customize-vlc.sh
+          chmod +x $GITHUB_WORKSPACE/ci_source/scripts/customize-vlc.sh
+          $GITHUB_WORKSPACE/ci_source/scripts/customize-vlc.sh
           # 检查构建结果
           if ls libvlcjni/libvlc/build/outputs/aar/*.aar 1> /dev/null 2>&1; then
             echo "✅ ARM64 aar 构建成功！"
@@ -317,7 +317,7 @@ jobs:
 
       # 前面checkout ci仓库时指定的检出路径为ci-source
       - name: Push aar to bv-libs repository
-        uses: ./ci-source/.github/actions/push-aar-to-bv-libs/
+        uses: ./ci_source/.github/actions/push_aar_to_bv_libs/
         with:
           SOURCE_AAR: "${{ github.workspace }}/libvlc-release.aar"
           TARGET_NAME: "libvlc"

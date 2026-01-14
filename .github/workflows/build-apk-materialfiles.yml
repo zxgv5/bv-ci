@@ -20,15 +20,15 @@ jobs:
     - name: Checkout source repo
       uses: actions/checkout@main
       with:
-        fetch-depth: 0
         repository: zhanghai/MaterialFiles
         ref: master
-        path: ./materialfiles-source
+        path: materialfiles_source
+        fetch-depth: 0
 
     - name: Checkout ci source repo (self)
       uses: actions/checkout@main
       with:
-        path: ci-source
+        path: ci_source
 
     - name: Initialization values
       run: |
@@ -41,7 +41,7 @@ jobs:
         java-version: '21'
 
     - name: Decode keystore and create signing.properties
-      working-directory: ./materialfiles-source
+      working-directory: ./materialfiles_source
       run: |
         # 解码keystore文件
         echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.p12
@@ -65,13 +65,13 @@ jobs:
         # sed 's/password=.*/password=***/g' signing.properties
 
     - name: Build release apk files
-      working-directory: ./materialfiles-source
+      working-directory: ./materialfiles_source
       run: |
         chmod +x ./gradlew
         ./gradlew assembleRelease
 
     - name: Find apk files and rename
-      working-directory: ./materialfiles-source
+      working-directory: ./materialfiles_source
       run: |
         # 首先尝试在标准的release目录中查找
         if [ -d "app/build/outputs/apk/release" ]; then
@@ -85,10 +85,10 @@ jobs:
         mv "$APK_PATH" "./materialfiles-${{ env.BUILD_DATE }}.apk"
 
     - name: Erase keystore, encrypt package and create release
-      uses: ./ci-source/.github/actions/erase-aes256pac-release/
+      uses: ./ci_source/.github/actions/erase_aes256pac_release/
       with:
         # 文件路径（基于github.workspace的绝对路径）
-        P12_KEYSTORE_PATH: "./materialfiles-source/keystore.p12 ./materialfiles-source/signing.properties"
+        P12_KEYSTORE_PATH: "./materialfiles_source/keystore.p12 ./materialfiles_source/signing.properties"
         ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
-        BUILD_ARTIFACT_PATH: "./materialfiles-source/materialfiles-${{ env.BUILD_DATE }}.apk"
+        BUILD_ARTIFACT_PATH: "./materialfiles_source/materialfiles-${{ env.BUILD_DATE }}.apk"
         RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-materialfiles"

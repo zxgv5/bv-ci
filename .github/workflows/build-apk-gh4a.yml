@@ -32,7 +32,7 @@ jobs:
       - name: Checkout ci source repo (self)
         uses: actions/checkout@main
         with:
-          path: ci-source
+          path: ci_source
 
       - name: Setup jdk
         uses: actions/setup-java@main
@@ -140,7 +140,7 @@ jobs:
           apksigner verify --verbose "${{ env.RENAMED_APK }}"
 
       - name: Erase keystore, encrypt package and create release
-        uses: ./ci-source/.github/actions/erase-aes256pac-release/
+        uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
           P12_KEYSTORE_PATH: "${{ env.KEYSTORE_PATH }}"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}

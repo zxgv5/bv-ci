@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@main
         with:
           # 指定一个子目录放ci仓库，避免与源仓库混淆
-          path: ci-source
+          path: ci_source
 
       # 并行克隆两个仓库
       - name: Checkout source repo (fantasy-bv)
@@ -69,8 +69,8 @@ jobs:
 
       - name: Customize scripts
         run: |
-          chmod +x $GITHUB_WORKSPACE/ci-source/scripts/customize-bv-fantasy.sh
-          $GITHUB_WORKSPACE/ci-source/scripts/customize-bv-fantasy.sh
+          chmod +x $GITHUB_WORKSPACE/ci_source/scripts/customize-bv-fantasy.sh
+          $GITHUB_WORKSPACE/ci_source/scripts/customize-bv-fantasy.sh
 
       # 从Monorepo精确合并每个库（核心改进）
       - name: Merge libraries from monorepo structure
@@ -214,7 +214,7 @@ jobs:
           mv ./app/build/outputs/apk/default/release/*.apk ./app/build/outputs/apk/default/release/fantasybv-${{ env.BUILD_DATE }}.apk
  
       - name: Erase keystore, encrypt package and create release
-        uses: ./ci-source/.github/actions/erase-aes256pac-release/
+        uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
           # 私钥文件路径（基于github.workspace的绝对路径）
           P12_KEYSTORE_PATH: "./fantasy-bv-source/keystore.p12"
