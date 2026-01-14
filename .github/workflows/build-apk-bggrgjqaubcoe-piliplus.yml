@@ -42,8 +42,8 @@ jobs:
           distribution: "temurin"
           cache: "gradle"
           cache-dependency-path: |
-            android/*.gradle*
-            android/**/gradle-wrapper.properties
+            ./piliplus_source/android/*.gradle*
+            ./piliplus_source/android/**/gradle-wrapper.properties
             
       - name: Set up flutter
         uses: subosito/flutter-action@main
