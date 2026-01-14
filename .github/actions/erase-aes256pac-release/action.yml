@@ -40,7 +40,7 @@ runs:
 
     - name: Install 7zip
       shell: bash
-      working-directory: ${{ github.workspace }}
+      # working-directory: ${{ github.workspace }}
       run: |
         set -e
         sudo apt-get update -y
