@@ -61,7 +61,6 @@ jobs:
         continue-on-error: true
         
       - name: Decode and write keys
-        # if: github.event_name == 'workflow_dispatch'
         run: |
           if [ ! -z "${{ secrets.KEYSTORE_BASE64 }}" ]; then
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > android/app/key.p12
@@ -82,7 +81,7 @@ jobs:
         
       - name: Rename apk file
         run: |
-          mv "/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "/build/app/outputs/flutter-apk/piliplus-${{ env.BUILD_DATE }}.apk"
+          mv "${{ github.workspace }}/build/app/outputs/flutter-apk/app-arm64-v8a-release.apk" "${{ github.workspace }}/build/app/outputs/flutter-apk/piliplus-${{ env.BUILD_DATE }}.apk"
         
       - name: Erase keystore, encrypt package and create release
         uses: ./ci-source/.github/actions/erase-aes256pac-release/
