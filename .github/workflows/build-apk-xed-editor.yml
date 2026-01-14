@@ -46,7 +46,7 @@ jobs:
         run: |
           mkdir -p /tmp
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > /tmp/xed.keystore
-          echo "keyAlias=${{ secrets.KEY_ALIAS }}" > ./tmp/signing.properties
+          echo "keyAlias=${{ secrets.KEY_ALIAS }}" > /tmp/signing.properties
           echo "keyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}" >> /tmp/signing.properties
           echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> /tmp/signing.properties
 
