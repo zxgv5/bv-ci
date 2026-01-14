@@ -26,8 +26,7 @@ runs:
   steps:
     - name: Remove keystore
       shell: bash
-      # !!! 注意此处是ci仓库的工作目录，即/ci-source/ !!!
-      working-directory: "${{ github.workspace }}/../" #根目录
+      working-directory: "${{ github.workspace }}"
       run: |
         set -e  # 命令出错时立即退出，避免继续执行
         pwd
@@ -49,10 +48,10 @@ runs:
 
     - name: Create aes256 archive with filename encryption
       shell: bash
-      # !!! 注意此处是ci仓库的工作目录，即/ci-source/ !!!
-      working-directory: "${{ github.workspace }}/../" #根目录
+      working-directory: "${{ github.workspace }}"
       run: |
         set -e
+        pwd
         # 打包并加密（参数说明：-mhe=on启用文件名加密，-mx=5中等压缩级别）
         7z a \
           -p"${{ inputs.ZIP_AES256_PWD }}" \
@@ -82,3 +81,5 @@ runs:
         draft: false
         prerelease: false
         files: "${{ github.workspace }}/${{ inputs.BUILD_ARTIFACT_PATH }}.7z"
+      run: |
+        echo "${{ github.workspace }}/${{ inputs.BUILD_ARTIFACT_PATH }}.7z"
