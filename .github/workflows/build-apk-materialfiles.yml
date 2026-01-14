@@ -71,7 +71,6 @@ jobs:
         ./gradlew assembleRelease
 
     - name: Find apk files and rename
-      id: find-apk
       working-directory: ./materialfiles-source
       run: |
         # 首先尝试在标准的release目录中查找
