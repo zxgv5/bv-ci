@@ -107,7 +107,7 @@ jobs:
             ~/.gradle/wrapper
             frost819-bv-source/.gradle
           key: ${{ runner.os }}-gradle-${{ hashFiles('frost819-bv-source/gradle/wrapper/gradle-wrapper.properties') }}
- 
+
       - name: Set up jdk 21
         uses: actions/setup-java@main
         with:
@@ -123,7 +123,7 @@ jobs:
           rm -rf ~/.gradle/caches/*/plugin-resolution/
           rm -rf ~/.gradle/caches/jars-*/  
           echo "已清理插件解析缓存"
-      
+
       - name: Validate google maven repo connection
         run: |
           # 直接测试构建所需的核心仓库连通性
@@ -155,7 +155,7 @@ jobs:
           # 同时，创建一个虚拟的debug密钥库文件（例如，直接复制一份release的，或创建一个空文件）
           # 这里选择复制，以确保它是一个有效的文件
           cp keystore.p12 debug.keystore
-      
+
       - name: Write signing.properties for release build
         working-directory: ./frost819-bv-source
         run: |
@@ -165,7 +165,6 @@ jobs:
           releaseKeyAlias=${{ secrets.KEY_ALIAS }}
           releaseStorePassword=${{ secrets.KEYSTORE_PASSWORD }}
           releaseKeyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}
-      
           # 2. 提供虚拟但有效的DEBUG签名配置（仅用于绕过脚本检查）
           debugStoreFile=debug.keystore
           debugKeyAlias=androiddebugkey
@@ -178,47 +177,18 @@ jobs:
         run: |
           echo "=== 开始构建 ==="
           ./gradlew :app:assembleRelease --no-daemon --stacktrace
-          
           # echo ""
           # echo "=== 构建完成！查找APK产物 ==="
           # find . -name "*.apk" -type f | grep -i release | while read apk; do
           #   echo "  $(ls -lh "$apk")"
           # done || echo "未找到APK文件，请检查构建日志。"
-          
           mv ./app/build/outputs/apk/default/release/BV_*.release_default_universal.apk ./app/build/outputs/apk/default/release/f819bv-${{ env.BUILD_DATE }}.apk
-          # mv ./app/build/outputs/apk/lite/release/BV_*.release_lite_universal.apk ./app/build/outputs/apk/lite/release/f819bv-lite-${{ env.BUILD_DATE }}.apk
 
-      - name: Remove keystore
-        working-directory: ./frost819-bv-source
-        run: |
-          rm -f "keystore.p12"
-          echo "Keystore removed successfully."
-
-      - name: Install 7zip
-        run: sudo apt-get update && sudo apt-get install -y p7zip-full
-
-      - name: Create aes256 encrypted archive with filename encryption
-        working-directory: ./frost819-bv-source/app/build/outputs/apk/default/release
-        run: |
-          7z a \
-            -p"${{ secrets.ZIP_AES256_PWD }}" \
-            -mhe=on \
-            -t7z \
-            -m0=lzma2 \
-            -mx=5 \
-            -mfb=64 \
-            -md=32m \
-            -ms=on \
-            -mhc=on \
-            -ma=2 \
-            ./f819bv-${{ env.BUILD_DATE }}.7z \
-            ./f819bv-${{ env.BUILD_DATE }}.apk
-
-      - name: Create github release & upload apk
-        uses: softprops/action-gh-release@master
+      - name: Erase keystore, encrypt package and create release
+        uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
-          tag_name: ${{env.BUILD_DATE}}-f819bv
-          files: |
-            frost819-bv-source/app/build/outputs/apk/default/release/f819bv-${{ env.BUILD_DATE }}.7z
-          draft: false
-          prerelease: false
+          # 文件路径为基于github.workspace的绝对路径
+          P12_KEYSTORE_PATH: "./frost819-bv-source/keystore.p12"
+          ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
+          BUILD_ARTIFACT_PATH: "./frost819-bv-source/app/build/outputs/apk/default/release/f819bv-${{ env.BUILD_DATE }}.apk"
+          RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-f819bv"
