@@ -6,7 +6,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  NDK_VERSION: 27.0.12077973  # 匹配项目依赖的NDK版本
+  NDK_VERSION: 27.0.12077973
 
 jobs:
   build:
@@ -17,12 +17,13 @@ jobs:
           rm -rf ~/.gradle/caches/transforms-*
           rm -rf ~/.android/build-cache/
           rm -rf ~/.gradle/wrapper/dists/*
+        shell: bash
 
       - name: Checkout source repo
         uses: actions/checkout@main
         with:
           repository: wgtunnel/wgtunnel
-          ref: master  # 1. 分支改为 master
+          ref: master
           path: wgtunnel_source
           fetch-depth: 0
 
@@ -36,25 +37,22 @@ jobs:
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
           GRADLE_VERSION=$(grep -oP 'distributionUrl=.*/gradle-(.*)-bin.zip' $GITHUB_WORKSPACE/wgtunnel_source/gradle/wrapper/gradle-wrapper.properties | grep -oP '(?<=gradle-).*(?=-bin.zip)')
           echo "GRADLE_VERSION=$GRADLE_VERSION" >> $GITHUB_ENV
+        shell: bash
 
-      - name: Set up jdk 17
+      - name: Set up JDK 17
         uses: actions/setup-java@main
         with:
           distribution: 'temurin'
           java-version: '17'
           cache: 'gradle'
 
-      - name: Install ndk ${{ env.NDK_VERSION }}
-        uses: nttld/setup-ndk@main
-        with:
-          ndk-version: ${{ env.NDK_VERSION }}
-          add-to-path: true
-
-      - name: Enable gradle build cache
+      - name: Enable Gradle build cache
         working-directory: ./wgtunnel_source
         run: |
           echo "org.gradle.caching=true" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
+          echo "org.gradle.logging.level=warn" >> gradle.properties  # 全局日志级别设为 WARN
+        shell: bash
 
       - name: Decode keystore and create signing.properties
         working-directory: ./wgtunnel_source
@@ -72,10 +70,11 @@ jobs:
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
           echo "KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
           if [ -f "signing.properties" ]; then
-            sed 's/password=.*/password=***/g' signing.properties
+            echo "✅ Signing config created successfully"
           else
-            exit 1
+            echo "❌ Failed to create signing.properties" && exit 1
           fi
+        shell: bash
 
       - name: Build release apk files
         working-directory: ./wgtunnel_source
@@ -89,7 +88,9 @@ jobs:
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
           chmod +x ./gradlew
-          ./gradlew assembleRelease --no-daemon --stacktrace --info
+          # 关键：调整日志级别为 WARN，过滤掉重复的 Native 库剥离提示
+          ./gradlew assembleRelease --no-daemon --warn 2>&1 | grep -E '(ERROR|WARN|BUILD SUCCESSFUL|apk|signing|NDK)' | grep -v 'Unable to strip library'
+        shell: bash
 
       - name: Find apk files and rename
         working-directory: ./wgtunnel_source
@@ -100,10 +101,11 @@ jobs:
             APK_PATH=$(find . -name "*.apk" -type f | grep -i release | grep -v unsigned | head -1)
           fi
           if [ -z "$APK_PATH" ]; then
-            echo "No valid release APK found!"
-            exit 1
+            echo "❌ No valid release APK found!" && exit 1
           fi
           mv "$APK_PATH" "./wgtunnel-${{ env.BUILD_DATE }}.apk"
+          echo "✅ APK renamed to: wgtunnel-${{ env.BUILD_DATE }}.apk"
+        shell: bash
 
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
