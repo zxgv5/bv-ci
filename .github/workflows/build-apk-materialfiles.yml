@@ -71,6 +71,12 @@ jobs:
 
     - name: Build release apk files
       working-directory: ./materialfiles_source
+      env:
+        STORE_FILE: ${{ env.STORE_FILE }}
+        STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+
       run: |
         chmod +x ./gradlew
         ./gradlew assembleRelease
