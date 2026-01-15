@@ -6,6 +6,7 @@ on:
 
 env:
   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+  NDK_VERSION: 27.0.12077973  # 匹配项目依赖的NDK版本
 
 jobs:
   build:
@@ -13,7 +14,6 @@ jobs:
     steps:
       - name: Clean runner environment
         run: |
-          # 清理全局缓存，避免旧依赖冲突
           rm -rf ~/.gradle/caches/transforms-*
           rm -rf ~/.android/build-cache/
           rm -rf ~/.gradle/wrapper/dists/*
@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@main
         with:
           repository: wgtunnel/wgtunnel
-          ref: master
+          ref: master  # 1. 分支改为 master
           path: wgtunnel_source
           fetch-depth: 0
 
@@ -34,7 +34,6 @@ jobs:
       - name: Initialization values
         run: |
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
-          # 读取仓库实际 Gradle 版本，确保构建兼容性
           GRADLE_VERSION=$(grep -oP 'distributionUrl=.*/gradle-(.*)-bin.zip' $GITHUB_WORKSPACE/wgtunnel_source/gradle/wrapper/gradle-wrapper.properties | grep -oP '(?<=gradle-).*(?=-bin.zip)')
           echo "GRADLE_VERSION=$GRADLE_VERSION" >> $GITHUB_ENV
 
@@ -43,32 +42,38 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'  # 启用 Gradle 缓存，加速重复构建
+          cache: 'gradle'
+
+      - name: Install ndk ${{ env.NDK_VERSION }}
+        uses: nttld/setup-ndk@main
+        with:
+          ndk-version: ${{ env.NDK_VERSION }}
+          add-to-path: true
+
+      - name: Enable gradle build cache
+        working-directory: ./wgtunnel_source
+        run: |
+          echo "org.gradle.caching=true" >> gradle.properties
+          echo "org.gradle.parallel=true" >> gradle.properties
 
       - name: Decode keystore and create signing.properties
         working-directory: ./wgtunnel_source
         run: |
-          # 解码 keystore 文件（兼容仓库无内置签名场景）
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.p12
           KEYSTORE_PATH=$(realpath keystore.p12)
-          # 创建 signing.properties，适配仓库 build.gradle.kts 签名读取逻辑
           cat > signing.properties << EOF
           storeFile=$KEYSTORE_PATH
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           keyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}
           EOF
-          # 注入环境变量，双重保障签名配置
           echo "STORE_FILE=$KEYSTORE_PATH" >> $GITHUB_ENV
           echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
           echo "KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
-          # 验证文件创建成功
           if [ -f "signing.properties" ]; then
-            echo "signing.properties created successfully (passwords masked):"
             sed 's/password=.*/password=***/g' signing.properties
           else
-            echo "Failed to create signing.properties!"
             exit 1
           fi
 
@@ -79,33 +84,26 @@ jobs:
           STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
           KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-          # 适配仓库 compileSdk=34 配置
           ANDROID_COMPILE_SDK: 34
           ANDROID_BUILD_TOOLS: 34.0.0
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
           chmod +x ./gradlew
-          # --no-daemon 加速构建，--stacktrace 便于排错
           ./gradlew assembleRelease --no-daemon --stacktrace --info
-          # 验证构建输出目录
-          ls -l app/build/outputs/apk/release/
 
       - name: Find apk files and rename
         working-directory: ./wgtunnel_source
         run: |
-          # 增强产物查找逻辑，排除未签名包
           if [ -d "app/build/outputs/apk/release" ]; then
             APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f ! -name "*unsigned*" | head -1)
           else
             APK_PATH=$(find . -name "*.apk" -type f | grep -i release | grep -v unsigned | head -1)
           fi
-          # 校验 APK 存在性
           if [ -z "$APK_PATH" ]; then
             echo "No valid release APK found!"
             exit 1
           fi
-          # 重命名（含构建日期+Commit SHA，便于追溯）
           mv "$APK_PATH" "./wgtunnel-${{ env.BUILD_DATE }}.apk"
-          echo "APK renamed to: wgtunnel-${{ env.BUILD_DATE }}.apk"
 
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
