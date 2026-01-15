@@ -1,3 +1,4 @@
+# 为standalone版本构建，此外还有fdroid和google版本
 name: build-apk-wgtunnel
 
 on:
@@ -46,80 +47,141 @@ jobs:
           java-version: '17'
           cache: 'gradle'
 
-      - name: Enable Gradle build cache
+      - name: Set up android sdk
+        uses: android-actions/setup-android@main
+
+      - name: Enable gradle build cache
         working-directory: ./wgtunnel_source
         run: |
           echo "org.gradle.caching=true" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
           echo "org.gradle.logging.level=warn" >> gradle.properties
+          # 禁用夜间构建的版本号递增，因为我们构建的是 release
+          echo "noSplits=true" >> gradle.properties
         shell: bash
 
-      - name: Decode keystore and create signing.properties
+      - name: Decode keystore and create local.properties
         working-directory: ./wgtunnel_source
         run: |
-          # 关键修复：项目期望 jks 后缀，将 p12 改为 jks
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
-          KEYSTORE_PATH=$(realpath keystore.jks)
+          # 创建 keystore 目录（项目期望的路径）
+          mkdir -p keystore
+          # 将 base64 编码的证书解码为 JKS 文件到正确路径
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore/android_keystore.jks
+          # 创建 local.properties 文件（LocalProperties.kt 会读取这个文件）
+          cat > local.properties << EOF
+          SIGNING_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}
+          KEY_STORE_PATH=keystore/android_keystore.jks
+          EOF
+          # 同时创建 signing.properties 用于最后一步的 action
           cat > signing.properties << EOF
-          storeFile=$KEYSTORE_PATH
+          storeFile=keystore/android_keystore.jks
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           keyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}
-          # 新增：指定 storeType，避免自动识别失败
-          storeType=PKCS12
           EOF
-          echo "STORE_FILE=$KEYSTORE_PATH" >> $GITHUB_ENV
-          echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
-          echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-          echo "KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
+          # 设置环境变量（项目会优先使用环境变量）
+          KEY_STORE_PATH=$(realpath keystore/android_keystore.jks)
+          echo "KEY_STORE_PATH=$KEY_STORE_PATH" >> $GITHUB_ENV
+          echo "SIGNING_STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
+          echo "SIGNING_KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+          echo "SIGNING_KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
           # 校验文件存在性
-          if [ -f "keystore.jks" ] && [ -f "signing.properties" ]; then
-            echo "✅ Signing files created successfully"
-            echo "Keystore path: $KEYSTORE_PATH"
-          else
-            echo "❌ Failed to create signing files" && exit 1
-          fi
+          echo "✅ Created signing files:"
+          echo "Keystore path: $KEY_STORE_PATH"
+          echo "File exists: $(test -f "$KEY_STORE_PATH" && echo 'Yes' || echo 'No')"
+          echo "local.properties created: $(test -f "local.properties" && echo 'Yes' || echo 'No')"
+          echo "signing.properties created: $(test -f "signing.properties" && echo 'Yes' || echo 'No')"
         shell: bash
 
-      - name: Build release apk files
+      - name: Build standalone release apk
         working-directory: ./wgtunnel_source
         env:
-          STORE_FILE: ${{ env.STORE_FILE }}
-          STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-          KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
-          ANDROID_COMPILE_SDK: 34
-          ANDROID_BUILD_TOOLS: 34.0.0
-          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
+          KEY_STORE_PATH: ${{ env.KEY_STORE_PATH }}
+          SIGNING_STORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.KEY_ALIAS_PASSWORD }}
+          ANDROID_HOME: ${{ env.ANDROID_HOME }}
+          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
         run: |
-          set -euo pipefail  # 确保管道命令失败时步骤退出
+          set -euo pipefail
           chmod +x ./gradlew
-          # 修复日志过滤：保留所有 ERROR/WARN，仅剔除重复的剥离警告，不吞关键错误
-          ./gradlew assembleRelease --no-daemon --warn 2>&1 | tee build.log | grep -v '^Unable to strip library'
-          # 单独提取错误信息输出
-          echo -e "\n===== Critical Build Errors/Warnings ====="
-          grep -E '(ERROR|WARN|doesn.t exist|replaced|signingConfigData)' build.log || true
+          echo "📦 Building standalone release variant..."
+          echo "=== Environment variables ==="
+          echo "KEY_STORE_PATH: $KEY_STORE_PATH"
+          echo "SIGNING_STORE_PASSWORD: [SET]"
+          echo "SIGNING_KEY_ALIAS: $SIGNING_KEY_ALIAS"
+          echo "ANDROID_HOME: $ANDROID_HOME"
+          echo "============================="
+          # 清理构建缓存
+          ./gradlew clean
+          # 首先构建依赖模块
+          echo "🔨 Building dependency modules..."
+          ./gradlew :logcatter:assembleRelease :networkmonitor:assembleRelease --no-daemon
+          # 构建 standalone flavor 的 release 版本
+          echo "🔨 Building app:standalone release..."
+          ./gradlew :app:assembleStandaloneRelease --no-daemon --stacktrace
+          # 检查构建结果
+          echo "📁 Checking build output..."
+          if [ -d "app/build/outputs/apk/standalone/release" ]; then
+            echo "✅ Build completed successfully"
+            echo "📦 Built APKs:"
+            ls -lh app/build/outputs/apk/standalone/release/
+            # 检查 APK 文件大小和签名
+            APK_FILE=$(find app/build/outputs/apk/standalone/release -name "*.apk" -type f ! -name "*unsigned*" ! -name "*unaligned*" | head -1)
+            if [ -n "$APK_FILE" ]; then
+              echo "📊 APK info:"
+              echo "Size: $(ls -lh "$APK_FILE" | awk '{print $5}')"
+              # 验证 APK 签名
+              if command -v apksigner >/dev/null 2>&1; then
+                echo "🔐 Verifying APK signature..."
+                apksigner verify --verbose "$APK_FILE" || echo "⚠️  Signature verification failed or apksigner not available"
+              fi
+            fi
+          else
+            echo "❌ Build failed - no output directory found"
+            echo "🔍 Searching for any build outputs..."
+            find app/build -name "*.apk" -type f 2>/dev/null | head -20 || true
+            exit 1
+          fi
         shell: bash
 
       - name: Find apk files and rename
         working-directory: ./wgtunnel_source
         run: |
-          if [ -d "app/build/outputs/apk/release" ]; then
-            APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" -type f ! -name "*unsigned*" | head -1)
-          else
-            APK_PATH=$(find . -name "*.apk" -type f | grep -i release | grep -v unsigned | head -1)
+          # 查找 standalone release 的 APK 文件
+          echo "🔍 Searching for standalone release APK..."
+          APK_PATH=$(find app/build/outputs/apk/standalone/release -name "*.apk" -type f ! -name "*unsigned*" ! -name "*unaligned*" | head -1)
+          if [ -z "$APK_PATH" ]; then
+            # 如果没找到，尝试在其他位置查找
+            echo "⚠️  Not found in expected location, searching elsewhere..."
+            APK_PATH=$(find . -name "*.apk" -type f | grep -i "standalone" | grep -i "release" | grep -v unsigned | grep -v unaligned | head -1)
           fi
           if [ -z "$APK_PATH" ]; then
-            echo "❌ No valid release APK found!" && exit 1
+            echo "❌ No valid standalone release APK found!"
+            echo "🔍 Searching for any APK files:"
+            find . -name "*.apk" -type f 2>/dev/null | head -20 || true
+            exit 1
           fi
-          mv "$APK_PATH" "./wgtunnel-${{ env.BUILD_DATE }}.apk"
-          echo "✅ APK renamed to: wgtunnel-${{ env.BUILD_DATE }}.apk"
+          echo "✅ Found APK: $APK_PATH"
+          echo "📁 File details:"
+          ls -lh "$APK_PATH"
+          # 获取版本信息用于命名
+          VERSION_INFO=$(unzip -p "$APK_PATH" "assets/version.txt" 2>/dev/null || echo "unknown-version")
+          echo "Version info: $VERSION_INFO"
+          # 重命名 APK 文件
+          NEW_NAME="wgtunnel-${{ env.BUILD_DATE }}.apk"
+          mv "$APK_PATH" "./$NEW_NAME"
+          echo "✅ APK renamed to: $NEW_NAME"
+          echo "APK_PATH=./$NEW_NAME" >> $GITHUB_ENV
+          echo "APK_FINAL_NAME=$NEW_NAME" >> $GITHUB_ENV
         shell: bash
 
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
-          P12_KEYSTORE_PATH: "./wgtunnel_source/keystore.jks ./wgtunnel_source/signing.properties"
+          P12_KEYSTORE_PATH: "./wgtunnel_source/keystore/android_keystore.jks ./wgtunnel_source/signing.properties"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
           BUILD_ARTIFACT_PATH: "./wgtunnel_source/wgtunnel-${{ env.BUILD_DATE }}.apk"
           RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-wgtunnel"
