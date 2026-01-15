@@ -39,7 +39,7 @@ jobs:
           echo "GRADLE_VERSION=$GRADLE_VERSION" >> $GITHUB_ENV
         shell: bash
 
-      - name: Set up JDK 17
+      - name: Set up jdk 17
         uses: actions/setup-java@main
         with:
           distribution: 'temurin'
@@ -51,28 +51,33 @@ jobs:
         run: |
           echo "org.gradle.caching=true" >> gradle.properties
           echo "org.gradle.parallel=true" >> gradle.properties
-          echo "org.gradle.logging.level=warn" >> gradle.properties  # 全局日志级别设为 WARN
+          echo "org.gradle.logging.level=warn" >> gradle.properties
         shell: bash
 
       - name: Decode keystore and create signing.properties
         working-directory: ./wgtunnel_source
         run: |
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.p12
-          KEYSTORE_PATH=$(realpath keystore.p12)
+          # 关键修复：项目期望 jks 后缀，将 p12 改为 jks
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > keystore.jks
+          KEYSTORE_PATH=$(realpath keystore.jks)
           cat > signing.properties << EOF
           storeFile=$KEYSTORE_PATH
           storePassword=${{ secrets.KEYSTORE_PASSWORD }}
           keyAlias=${{ secrets.KEY_ALIAS }}
           keyPassword=${{ secrets.KEY_ALIAS_PASSWORD }}
+          # 新增：指定 storeType，避免自动识别失败
+          storeType=PKCS12
           EOF
           echo "STORE_FILE=$KEYSTORE_PATH" >> $GITHUB_ENV
           echo "STORE_PASSWORD=${{ secrets.KEYSTORE_PASSWORD }}" >> $GITHUB_ENV
           echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
           echo "KEY_PASSWORD=${{ secrets.KEY_ALIAS_PASSWORD }}" >> $GITHUB_ENV
-          if [ -f "signing.properties" ]; then
-            echo "✅ Signing config created successfully"
+          # 校验文件存在性
+          if [ -f "keystore.jks" ] && [ -f "signing.properties" ]; then
+            echo "✅ Signing files created successfully"
+            echo "Keystore path: $KEYSTORE_PATH"
           else
-            echo "❌ Failed to create signing.properties" && exit 1
+            echo "❌ Failed to create signing files" && exit 1
           fi
         shell: bash
 
@@ -87,9 +92,13 @@ jobs:
           ANDROID_BUILD_TOOLS: 34.0.0
           ANDROID_NDK_HOME: ${{ env.ANDROID_NDK_HOME }}
         run: |
+          set -euo pipefail  # 确保管道命令失败时步骤退出
           chmod +x ./gradlew
-          # 关键：调整日志级别为 WARN，过滤掉重复的 Native 库剥离提示
-          ./gradlew assembleRelease --no-daemon --warn 2>&1 | grep -E '(ERROR|WARN|BUILD SUCCESSFUL|apk|signing|NDK)' | grep -v 'Unable to strip library'
+          # 修复日志过滤：保留所有 ERROR/WARN，仅剔除重复的剥离警告，不吞关键错误
+          ./gradlew assembleRelease --no-daemon --warn 2>&1 | tee build.log | grep -v '^Unable to strip library'
+          # 单独提取错误信息输出
+          echo -e "\n===== Critical Build Errors/Warnings ====="
+          grep -E '(ERROR|WARN|doesn.t exist|replaced|signingConfigData)' build.log || true
         shell: bash
 
       - name: Find apk files and rename
@@ -110,7 +119,7 @@ jobs:
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
-          P12_KEYSTORE_PATH: "./wgtunnel_source/keystore.p12 ./wgtunnel_source/signing.properties"
+          P12_KEYSTORE_PATH: "./wgtunnel_source/keystore.jks ./wgtunnel_source/signing.properties"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
           BUILD_ARTIFACT_PATH: "./wgtunnel_source/wgtunnel-${{ env.BUILD_DATE }}.apk"
           RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-wgtunnel"
