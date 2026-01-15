@@ -1,5 +1,5 @@
 package dev.aaa1115910.bv.tv.screens.main.home
-
+ 
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,14 +19,11 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -55,7 +52,7 @@ import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-
+ 
 @Composable
 fun DynamicsScreen(
     modifier: Modifier = Modifier,
@@ -65,50 +62,13 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var currentFocusedIndex by remember { mutableIntStateOf(-1) }
-
-    // FocusRequester数组管理每个item焦点（TV端兼容方案）
-    val itemFocusRequesters = remember {
-        mutableStateListOf<FocusRequester>().apply {
-            repeat(dynamicViewModel.dynamicVideoList.size) { add(FocusRequester()) }
-        }
-    }
-
-    // 同步列表与FocusRequester数组长度
-    LaunchedEffect(dynamicViewModel.dynamicVideoList.size) {
-        if (itemFocusRequesters.size < dynamicViewModel.dynamicVideoList.size) {
-            val needAddCount = dynamicViewModel.dynamicVideoList.size - itemFocusRequesters.size
-            repeat(needAddCount) { itemFocusRequesters.add(FocusRequester()) }
-        } else if (itemFocusRequesters.size > dynamicViewModel.dynamicVideoList.size) {
-            itemFocusRequesters.subList(dynamicViewModel.dynamicVideoList.size, itemFocusRequesters.size).clear()
-        }
-    }
-
-    // 当前可见item索引范围（解决“已添加未渲染”问题）
-    val visibleItemIndices by remember(lazyGridState.layoutInfo) {
-        derivedStateOf {
-            val layoutInfo = lazyGridState.layoutInfo
-            layoutInfo.visibleItemsInfo.map { it.index }.toSet()
-        }
-    }
-
-    // 加载触发时机（提前6项+防重复加载）
     val shouldLoadMore by remember {
-        derivedStateOf {
-            dynamicViewModel.dynamicVideoList.isNotEmpty() &&
-                    currentFocusedIndex + 6 > dynamicViewModel.dynamicVideoList.size &&
-                    !dynamicViewModel.loadingVideo
-        }
+        derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex + 12 > dynamicViewModel.dynamicVideoList.size }
     }
-
     val showTip by remember {
         derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex >= 0 }
     }
-
-    // 列表最大有效索引
-    val maxValidIndex by remember {
-        derivedStateOf { dynamicViewModel.dynamicVideoList.size - 1 }
-    }
-
+ 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         VideoInfoActivity.actionStart(
             context = context,
@@ -116,7 +76,7 @@ fun DynamicsScreen(
             proxyArea = ProxyArea.checkProxyArea(dynamic.title)
         )
     }
-
+ 
     val onLongClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         UpInfoActivity.actionStart(
             context,
@@ -125,8 +85,8 @@ fun DynamicsScreen(
             face = dynamic.authorFace
         )
     }
-
-    // 加载更多逻辑
+ 
+    //不能直接使用 LaunchedEffect(currentFocusedIndex)，会导致整个页面重组
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
             scope.launch(Dispatchers.IO) {
@@ -134,11 +94,10 @@ fun DynamicsScreen(
             }
         }
     }
-
+ 
     if (dynamicViewModel.isLogin) {
         val padding = dimensionResource(R.dimen.grid_padding)
         val spacedBy = dimensionResource(R.dimen.grid_spacedBy)
-
         if (showTip) {
             Text(
                 modifier = Modifier.fillMaxWidth().offset(x = (-20).dp, y = (-8).dp),
@@ -148,39 +107,20 @@ fun DynamicsScreen(
                 textAlign = TextAlign.End
             )
         }
-
         ProvideListBringIntoViewSpec {
             LazyVerticalGrid(
                 modifier = modifier
                     .fillMaxSize()
-                    .onFocusChanged {
+                    .onFocusChanged{
                         if (!it.isFocused) {
                             currentFocusedIndex = -1
                         }
                     }
-                    // 终极修复：仅拦截KeyDown（长按下键=连续KeyDown，无需Repeat枚举）
-                    .onPreviewKeyEvent { event ->
-                        // 菜单键原有逻辑保留
-                        if (event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
+                    .onPreviewKeyEvent {
+                        if(it.type == KeyEventType.KeyUp && it.key == Key.Menu) {
                             context.startActivity(Intent(context, FollowActivity::class.java))
                             return@onPreviewKeyEvent true
                         }
-
-                        // 仅拦截向下方向键的KeyDown事件（覆盖长按连续触发）
-                        if (event.key == Key.DirectionDown && event.type == KeyEventType.KeyDown) {
-                            val nextIndex = currentFocusedIndex + 1
-                            // 校验下一项是否有效且已渲染
-                            val nextItemAvailable = nextIndex <= maxValidIndex && visibleItemIndices.contains(nextIndex)
-                            if (nextItemAvailable) {
-                                // 下一项可用，手动请求焦点
-                                scope.launch {
-                                    itemFocusRequesters[nextIndex].requestFocus()
-                                }
-                            }
-                            // 强制拦截事件，彻底阻止系统默认焦点搜索（核心防左移）
-                            return@onPreviewKeyEvent true
-                        }
-
                         false
                     },
                 columns = GridCells.Fixed(4),
@@ -189,16 +129,8 @@ fun DynamicsScreen(
                 verticalArrangement = Arrangement.spacedBy(spacedBy),
                 horizontalArrangement = Arrangement.spacedBy(spacedBy)
             ) {
-                itemsIndexed(dynamicViewModel.dynamicVideoList) { index, item ->
+                itemsIndexed(dynamicViewModel.dynamicVideoList, key = { _, item -> item.aid }) { index, item ->
                     SmallVideoCard(
-                        modifier = Modifier
-                            .focusRequester(itemFocusRequesters[index])
-                            .onFocusChanged { focusState ->
-                                // 焦点变化时更新当前索引
-                                if (focusState.isFocused) {
-                                    currentFocusedIndex = index
-                                }
-                            },
                         data = remember(item.aid) {
                             VideoCardData(
                                 avid = item.aid,
@@ -214,24 +146,22 @@ fun DynamicsScreen(
                             )
                         },
                         onClick = { onClickVideo(item) },
-                        onLongClick = { onLongClickVideo(item) },
-                        onFocus = {} // 兼容原有回调，无需实现
+                        onLongClick = {onLongClickVideo(item) },
+                        onFocus = { currentFocusedIndex = index }
                     )
                 }
-
-                // 加载中提示（原有逻辑）
+ 
                 if (dynamicViewModel.loadingVideo) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(
-                            modifier = Modifier.fillMaxSize(),
+                            modifier = Modifier.fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
                             LoadingTip()
                         }
                     }
                 }
-
-                // 无更多数据提示（原有逻辑）
+ 
                 if (!dynamicViewModel.videoHasMore) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
@@ -243,7 +173,6 @@ fun DynamicsScreen(
             }
         }
     } else {
-        // 未登录提示（原有逻辑）
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
