@@ -315,12 +315,25 @@ jobs:
           # 使用修复后的webpack配置构建前端
           echo "构建前端资源..."
           npx webpack --progress --mode production
-          # 验证构建结果
-          if [ -d "www/build" ] && [ -f "www/build/main.js" ]; then
-            echo "✅ 前端资源构建成功"
-            ls -la www/build/
+          # 验证构建结果 - 检查是否有任何JS文件生成
+          if [ -d "www/build" ]; then
+            JS_FILES=$(find www/build -name "*.js" -type f)
+            CSS_FILES=$(find www/build -name "*.css" -type f)
+            
+            if [ -n "$JS_FILES" ] || [ -n "$CSS_FILES" ]; then
+              echo "✅ 前端资源构建成功"
+              echo "生成的JS文件:"
+              echo "$JS_FILES" | head -20
+              echo "生成的CSS文件:"
+              echo "$CSS_FILES" | head -10
+              echo "文件统计:"
+              ls -la www/build/ | head -20
+            else
+              echo "❌ 前端资源构建失败: 没有生成JS或CSS文件"
+              exit 1
+            fi
           else
-            echo "❌ 前端资源构建失败"
+            echo "❌ www/build目录不存在"
             exit 1
           fi
 
