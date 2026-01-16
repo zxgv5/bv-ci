@@ -40,14 +40,12 @@ jobs:
         uses: actions/setup-java@main
         with:
           distribution: 'temurin'
-          java-version: '17' # Cordova Android 14要求JDK 17
+          java-version: '17'
 
       - name: Setup bun runtime
         run: |
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
-          # 确保bun在PATH中
-          export PATH="$HOME/.bun/bin:$PATH"
           echo "Bun版本: $(bun --version)"
 
       - name: Setup fdroid configuration
@@ -68,7 +66,6 @@ jobs:
           
           echo "✅ 签名密钥文件已恢复"
           echo "密钥文件路径: $(pwd)/${{ env.KEYSTORE_PATH }}"
-          ls -la android/app/
           
           # 验证密钥文件有效性
           keytool -list -keystore "${{ env.KEYSTORE_PATH }}" -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -v && echo "✅ 密钥验证成功"
@@ -179,181 +176,75 @@ jobs:
             exit 1
           fi
 
-      - name: Fix webpack babel configuration
+      - name: Restore original webpack config
         working-directory: ./acode_source
         run: |
-          # 临时修复webpack配置中的重复tag导入问题
-          # 备份原配置
-          cp webpack.config.js webpack.config.js.backup
-          
-          # 修改webpack配置，避免重复tag导入
-          cat > webpack.config.js << 'EOF'
-          const path = require('path');
-          const fs = require('fs');
-          const MiniCssExtractPlugin = require('mini-css-extract-plugin');
-
-          const WWW = path.resolve(__dirname, 'www');
-
-          module.exports = (env, options) => {
-            const { mode = 'development' } = options;
-            const rules = [
-              {
-                test: /\.(hbs|md)$/,
-                use: ['raw-loader'],
-              },
-              {
-                test: /\.m.(sa|sc|c)ss$/,
-                use: [
-                  'raw-loader',
-                  'postcss-loader',
-                  'sass-loader',
-                ],
-              },
-              {
-                test: /\.(png|svg|jpg|jpeg|ico|ttf|webp|eot|woff|webm|mp4|webp|wav)(\?.*)?$/,
-                type: "asset/resource",
-              },
-              {
-                test: /(?<!\.m)\.(sa|sc|c)ss$/,
-                use: [
-                  {
-                    loader: MiniCssExtractPlugin.loader,
-                  },
-                  'css-loader',
-                  'postcss-loader',
-                  'sass-loader',
-                ],
-              },
-            ];
-
-            // 生产模式下的JS处理 - 简化版本，避免重复导入问题
-            if (mode === 'production') {
-              rules.push({
-                test: /\.m?js$/,
-                exclude: /node_modules\/(?!(html-tag-js)\/).*/,
-                use: [
-                  {
-                    loader: 'babel-loader',
-                    options: {
-                      presets: ['@babel/preset-env'],
-                      plugins: [
-                        ['@babel/plugin-transform-runtime', {
-                          corejs: 3,
-                          helpers: true,
-                          regenerator: true,
-                          useESModules: false
-                        }]
-                      ]
-                    },
-                  },
-                ],
-              });
-            }
-
-            const main = {
-              mode,
-              entry: {
-                main: './src/main.js',
-                console: './src/lib/console.js',
-              },
-              output: {
-                path: path.resolve(__dirname, 'www/build/'),
-                filename: '[name].js',
-                chunkFilename: '[name].chunk.js',
-                assetModuleFilename: '[name][ext]',
-                publicPath: '/build/',
-                clean: true,
-              },
-              module: {
-                rules,
-              },
-              resolve: {
-                fallback: {
-                  path: require.resolve('path-browserify'),
-                  crypto: false,
-                },
-                modules: ["node_modules", "src"],
-              },
-              plugins: [
-                new MiniCssExtractPlugin({
-                  filename: '[name].css',
-                }),
-              ],
-            };
-
-            return [main];
-          };
-          EOF
-          
-          echo "✅ Webpack配置已调整"
+          # 如果有备份，恢复原始webpack配置
+          if [ -f "webpack.config.js.backup" ]; then
+            cp webpack.config.js.backup webpack.config.js
+            echo "✅ 恢复原始webpack配置"
+          fi
 
       - name: Install project dependencies
         working-directory: ./acode_source
         run: |
-          # 使用Bun安装依赖，利用其更快的速度
+          # 使用Bun安装依赖
           bun install
           # 安装钩子脚本所需的全局依赖
           bun add -g prettier prettier-plugin-java
-          
-          # 验证Cordova已安装
-          echo "检查Cordova安装状态..."
-          bun list cordova || echo "Cordova未安装，将在下一步安装"
 
       - name: Install cordova cli
         working-directory: ./acode_source
         run: |
-          # 安装与package.json中版本匹配的Cordova
+          # 从package.json读取cordova版本
           CORDOVA_VERSION=$(grep -oP '"cordova": "\K[^"]+' package.json)
           echo "检测到Cordova版本: ${CORDOVA_VERSION}"
-          # 使用npm全局安装cordova（更可靠）
-          npm install -g cordova@${CORDOVA_VERSION}
-          echo "✅ Cordova CLI ${CORDOVA_VERSION} 已全局安装"
+          
+          # 使用npm安装指定版本的cordova
+          npm install cordova@${CORDOVA_VERSION}
           
           # 验证安装
-          cordova --version
-          which cordova
+          echo "Cordova版本: $(npx cordova --version)"
 
-      - name: Setup cordova android platform
+      - name: Prepare cordova project
         working-directory: ./acode_source
         run: |
-          echo "设置Cordova Android平台..."
+          # 运行项目的setup脚本（会安装cordova-android）
+          npm run setup
           
-          # 清理现有平台
-          if [ -d "platforms/android" ]; then
-            echo "移除现有Android平台..."
-            cordova platform rm android || true
+          # 验证cordova-android版本
+          if [ -f "package.json" ]; then
+            CORDOVA_ANDROID_VERSION=$(grep -oP '"cordova-android": "\K[^"]+' package.json)
+            echo "cordova-android版本: ${CORDOVA_ANDROID_VERSION}"
           fi
           
-          # 添加Android平台（使用package.json中指定的版本）
-          CORDOVA_ANDROID_VERSION=$(grep -oP '"cordova-android": "\K[^"]+' package.json)
-          echo "添加Cordova Android平台 ${CORDOVA_ANDROID_VERSION}..."
-          cordova platform add android@${CORDOVA_ANDROID_VERSION}
-          
-          echo "✅ Cordova Android平台设置完成"
+          # 检查Android平台是否已添加
+          echo "检查Cordova平台状态:"
+          npx cordova platform list
 
       - name: Execute application build
         working-directory: ./acode_source
         run: |
-          # 设置PATH确保cordova可用
-          export PATH="$PATH:$(npm bin -g)"
+          # 设置PATH确保node_modules/.bin可用
+          export PATH="$PATH:$(pwd)/node_modules/.bin"
           echo "Cordova路径: $(which cordova)"
           cordova --version
           
-          # 调用项目自身的构建脚本，确保与本地构建一致
+          # 调用项目自身的构建脚本
           echo "开始构建 Paid Release APK..."
-          # 直接使用npm run build，它会调用build.sh
-          npm run build paid p apk || {
-            echo "构建失败，尝试直接运行build.sh..."
-            sh ./utils/scripts/build.sh paid p apk
-          }
+          
+          # 使用build.sh脚本构建
+          sh ./utils/scripts/build.sh paid p apk
           
           # 验证构建产物
           if [ -f "platforms/android/app/build/outputs/apk/release/app-release.apk" ]; then
             echo "✅ APK构建成功!"
             cp platforms/android/app/build/outputs/apk/release/app-release.apk "/tmp/acode-${{ env.UPDATED_VERSION }}-${{ env.BUILD_DATE }}.apk"
+            echo "APK文件: /tmp/acode-${{ env.UPDATED_VERSION }}-${{ env.BUILD_DATE }}.apk"
             ls -lh "/tmp/acode-${{ env.UPDATED_VERSION }}-${{ env.BUILD_DATE }}.apk"
           else
             echo "❌ 错误: 未找到构建产物!"
+            echo "搜索APK文件..."
             find platforms/android/app/build/outputs -name "*.apk" -type f
             exit 1
           fi
