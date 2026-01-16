@@ -1,12 +1,12 @@
 name: build-apk-acode
- 
+
 on:
   workflow_dispatch:
   workflow_call:
- 
+
 permissions:
   contents: write
- 
+
 env:
   GITHUB_TOKEN: "${{secrets.GITHUB_TOKEN}}"
   BUILD_JSON_PATH: "./build.json"
@@ -14,7 +14,7 @@ env:
   KEYSTORE_PASSWORD: "${{secrets.KEYSTORE_PASSWORD}}"
   KEY_ALIAS: "${{secrets.KEY_ALIAS}}"
   KEY_PASSWORD: "${{secrets.KEY_PASSWORD}}"
- 
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -24,7 +24,7 @@ jobs:
           # 清理可能存在的全局缓存文件
           rm -rf ~/.gradle/caches/transforms-*
           rm -rf ~/.android/build-cache/
- 
+
       - name: Checkout source repo
         uses: actions/checkout@main
         with:
@@ -32,19 +32,19 @@ jobs:
           ref: main
           path: acode_source
           fetch-depth: 0
- 
+
       - name: Checkout ci source repo (self)
         uses: actions/checkout@main
         with:
           path: ci_source
- 
+
       - name: Initialization values
         run: |
           # 先获取当前commit信息
           echo "GIT_COMMIT=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
           echo "PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || git rev-list --max-parents=0 HEAD)" >> $GITHUB_ENV
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
- 
+
       - name: Fix build-extras.gradle for release build
         working-directory: ./acode_source
         run: |
@@ -71,18 +71,19 @@ jobs:
             }
           }
           EOF
- 
+
       - name: Set up jdk 21
         uses: actions/setup-java@main
         with:
           distribution: 'temurin'
           java-version: '21'
           cache: 'gradle'
- 
+
       - name: Set up node.js
         uses: actions/setup-node@main
         with:
           node-version: 'lts/*'
+
       # app-release.keystore和build.json的路径都在构建文件中被硬编码了
       # "/tmp/app-release.keystore" 和 "/build.json"
       - name: Add keystore and build.json from secrets
@@ -90,34 +91,38 @@ jobs:
           mkdir -p /tmp
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "${{ env.STORE_FILE_PATH }}"
           echo "${{ secrets.ACODE_BUILD_JSON_CONTENT }}" | base64 -d > "${{ env.BUILD_JSON_PATH }}"
-          # echo "${{ secrets.ACODE_BUILD_JSON_CONTENT_BASE64 }}" | base64 -d > "${{ env.BUILD_JSON_PATH }}"
           echo "Keystore and build.json added successfully."
           # 验证keystore密码
           keytool -list -keystore "${{ env.STORE_FILE_PATH }}" -storepass "${{ env.KEYSTORE_PASSWORD }}" -v || {
             echo "Keystore password verification failed!"
             exit 1
           }
- 
+
       - name: Replace config.js with secured version
         working-directory: ./acode_source
         run: |
           echo "正在替换 utils/config.js 文件..."
+          
           # 确保utils目录存在
           if [ ! -d "utils" ]; then
             mkdir -p utils
             echo "创建了 utils 目录"
           fi
+          
           # 从secrets中获取base64编码的config.js内容并解码
           if [ -z "${{ secrets.ACODE_BUILD_CONFIGJS_BASE64 }}" ]; then
             echo "错误: ACODE_BUILD_CONFIGJS_BASE64 secret 为空!"
             exit 1
           fi
+          
           echo "${{ secrets.ACODE_BUILD_CONFIGJS_BASE64 }}" | base64 -d > utils/config.js
+          
           # 验证文件是否成功写入
           if [ ! -f "utils/config.js" ]; then
             echo "错误: 无法创建 utils/config.js 文件!"
             exit 1
           fi
+          
           # 验证文件内容（检查是否是有效的JavaScript）
           if ! node -c utils/config.js 2>/dev/null; then
             echo "警告: utils/config.js 不是有效的JavaScript文件"
@@ -126,12 +131,13 @@ jobs:
           else
             echo "✓ utils/config.js 是有效的JavaScript文件"
           fi
+          
           # 显示文件大小和基本信息
           echo "文件信息:"
           ls -la utils/config.js
           echo "文件行数: $(wc -l < utils/config.js)"
           echo "✓ utils/config.js 文件替换完成"
- 
+
       - name: Extract versionCode and version from config.xml
         id: extract_version
         working-directory: ./acode_source
@@ -146,7 +152,7 @@ jobs:
           echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
           echo "Extracted Version Code: $VERSION_CODE"
           echo "Extracted Version: $VERSION"
- 
+
       - name: Append commit hash to version and update config.xml
         id: update-version
         working-directory: ./acode_source
@@ -168,19 +174,19 @@ jobs:
           # Output the updated version
           echo "UPDATED_VERSION=$UPDATED_VERSION" >> $GITHUB_ENV
           echo "UPDATED_VERSION=$UPDATED_VERSION" >> $GITHUB_OUTPUT
- 
+
       - name: Install node.js packages
         working-directory: ./acode_source
         run: npm install
- 
+
       - name: Install cordova cli
         working-directory: ./acode_source
         run: npm install -g cordova
- 
+
       - name: Run npm setup
         working-directory: ./acode_source
         run: npm run setup
- 
+
       - name: Run npm build paid apk
         working-directory: ./acode_source
         run: |
@@ -193,11 +199,14 @@ jobs:
           cd platforms/android
           ./gradlew clean
           ./gradlew assembleRelease
+          
           # 查找生成的APK文件
           echo "Looking for APK files..."
           find app/build/outputs/apk -name "*.apk" -type f
+          
           # 确保目录存在
           mkdir -p /tmp
+          
           # 复制release APK到临时目录
           if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
             echo "Found unsigned release APK"
@@ -215,20 +224,24 @@ jobs:
               fi
             done
           fi
+          
           # 验证APK文件存在
           ls -la /tmp/acode-unsigned.apk || echo "APK file not found!"
- 
+
       - name: Sign the apk (pkcs12)
         working-directory: ./acode_source
         run: |
           # 设置Android build-tools路径
           export ANDROID_HOME=/usr/local/lib/android/sdk
           export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
+          
           # 验证apksigner可用
           which apksigner
           apksigner --version
+          
           echo "APK file size before signing:"
           ls -lh /tmp/acode-unsigned.apk
+          
           # 使用apksigner对APK签名
           apksigner sign \
             --ks "${{ env.STORE_FILE_PATH }}" \
@@ -247,7 +260,7 @@ jobs:
           # 列出所有/tmp目录下的acode相关文件
           echo "Files in /tmp directory:"
           ls -la /tmp/acode-*
- 
+
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
