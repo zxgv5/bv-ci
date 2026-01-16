@@ -8,9 +8,7 @@ permissions:
   contents: write
 
 env:
-  # 签名配置使用环境变量，不在代码中硬编码密码
   KEYSTORE_PATH: "./android/app/paid-release.keystore"
-  # F-Droid模式明确禁用，确保targetSdkVersion=35
   F_DROID_MODE: "false"
 
 jobs:
@@ -46,46 +44,30 @@ jobs:
         run: |
           curl -fsSL https://bun.sh/install | bash
           echo "$HOME/.bun/bin" >> $GITHUB_PATH
-          echo "Bun版本: $(bun --version)"
 
       - name: Setup fdroid configuration
         working-directory: ./acode_source
         run: |
-          # 明确设置F-Droid模式为false，确保targetSdkVersion=35
           echo "${{ env.F_DROID_MODE }}" > /tmp/fdroid.bool
           echo "F-Droid模式已设置为: ${{ env.F_DROID_MODE }} (targetSdkVersion=35)"
 
       - name: Restore signing credentials
         working-directory: ./acode_source
         run: |
-          # 创建android/app目录
           mkdir -p android/app
-          
-          # 从Secrets还原签名密钥文件
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > "${{ env.KEYSTORE_PATH }}"
-          
           echo "✅ 签名密钥文件已恢复"
-          echo "密钥文件路径: $(pwd)/${{ env.KEYSTORE_PATH }}"
-          
-          # 验证密钥文件有效性
           keytool -list -keystore "${{ env.KEYSTORE_PATH }}" -storepass "${{ secrets.KEYSTORE_PASSWORD }}" -v && echo "✅ 密钥验证成功"
 
       - name: Inject build configuration
         working-directory: ./acode_source
         run: |
-          # 从config.xml提取版本信息
           APP_VERSION=$(grep -oP 'version="\K[0-9.]+' config.xml)
           VERSION_CODE=$(grep -oP 'android-versionCode="\K[0-9]+' config.xml)
-          
-          # 在版本号后追加提交哈希
           UPDATED_VERSION="${APP_VERSION}-${SHORT_SHA}"
           echo "构建版本: $UPDATED_VERSION (原始: $APP_VERSION)"
           echo "版本代码: $VERSION_CODE"
-          
-          # 更新config.xml中的版本号
           sed -i "s/version=\"$APP_VERSION\"/version=\"$UPDATED_VERSION\"/" config.xml
-          
-          # 设置环境变量供后续步骤使用
           echo "APP_VERSION=$APP_VERSION" >> $GITHUB_ENV
           echo "UPDATED_VERSION=$UPDATED_VERSION" >> $GITHUB_ENV
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
@@ -93,7 +75,6 @@ jobs:
       - name: Generate build configuration
         working-directory: ./acode_source
         run: |
-          # 1. 生成build.json（使用环境变量，确保密码正确注入）
           cat > build.json << EOF
           {
             "android": {
@@ -106,45 +87,24 @@ jobs:
             }
           }
           EOF
-          
           echo "✅ build.json已生成"
-          echo "build.json内容预览:"
-          cat build.json | sed 's/"storePassword": ".*"/"storePassword": "***"/g' | sed 's/"password": ".*"/"password": "***"/g'
-          
-          # 验证build.json格式
-          if jq empty build.json 2>/dev/null; then
-            echo "✅ build.json格式正确"
-          else
-            echo "❌ build.json格式错误"
-            exit 1
-          fi
-          
-          # 2. 生成简化的config.js
+
           cat > utils/config.js << 'EOF'
-          // 简化的config.js，仅处理付费版生产构建
           const path = require("node:path");
           const fs = require("node:fs");
-          
           console.log("开始配置应用...");
-          
           try {
-            // 读取配置
             const configPath = path.resolve(__dirname, "../config.xml");
             const babelrcPath = path.resolve(__dirname, "../.babelrc");
-            
             if (!fs.existsSync(configPath)) {
               console.error("❌ config.xml不存在");
               process.exit(1);
             }
-            
             if (!fs.existsSync(babelrcPath)) {
               console.error("❌ .babelrc不存在");
               process.exit(1);
             }
-            
             let config = fs.readFileSync(configPath, "utf-8");
-            
-            // 确保是付费版ID
             if (!config.includes('id="com.foxdebug.acode"')) {
               config = config.replace(/id="[^"]+"/, 'id="com.foxdebug.acode"');
               fs.writeFileSync(configPath, config, "utf8");
@@ -152,12 +112,9 @@ jobs:
             } else {
               console.log("✅ 应用ID已是付费版");
             }
-            
-            // 设置生产模式（compact）
             const babelrc = JSON.parse(fs.readFileSync(babelrcPath, "utf-8"));
             babelrc.compact = true;
             fs.writeFileSync(babelrcPath, JSON.stringify(babelrc, null, 2), "utf8");
-            
             console.log("✅ 配置完成");
             process.exit(0);
           } catch (error) {
@@ -165,76 +122,168 @@ jobs:
             process.exit(1);
           }
           EOF
-          
           echo "✅ config.js已生成"
-          
-          # 验证config.js语法
-          if node -c utils/config.js; then
-            echo "✅ config.js语法正确"
-          else
-            echo "❌ config.js语法错误"
-            exit 1
-          fi
+          node -c utils/config.js && echo "✅ config.js语法正确"
 
-      - name: Restore original webpack config
+      - name: Fix webpack duplicate import issue
         working-directory: ./acode_source
         run: |
-          # 如果有备份，恢复原始webpack配置
-          if [ -f "webpack.config.js.backup" ]; then
-            cp webpack.config.js.backup webpack.config.js
-            echo "✅ 恢复原始webpack配置"
-          fi
+          # 创建修复重复导入问题的webpack配置
+          cat > webpack.config.fixed.js << 'EOF'
+          const path = require('path');
+          const fs = require('fs');
+          const MiniCssExtractPlugin = require('mini-css-extract-plugin');
+
+          const WWW = path.resolve(__dirname, 'www');
+
+          module.exports = (env, options) => {
+            const { mode = 'development' } = options;
+            const rules = [
+              {
+                test: /\.(hbs|md)$/,
+                use: ['raw-loader'],
+              },
+              {
+                test: /\.m.(sa|sc|c)ss$/,
+                use: [
+                  'raw-loader',
+                  'postcss-loader',
+                  'sass-loader',
+                ],
+              },
+              {
+                test: /\.(png|svg|jpg|jpeg|ico|ttf|webp|eot|woff|webm|mp4|webp|wav)(\?.*)?$/,
+                type: "asset/resource",
+              },
+              {
+                test: /(?<!\.m)\.(sa|sc|c)ss$/,
+                use: [
+                  {
+                    loader: MiniCssExtractPlugin.loader,
+                  },
+                  'css-loader',
+                  'postcss-loader',
+                  'sass-loader',
+                ],
+              },
+            ];
+
+            // 修复：生产模式下移除tag-loader，避免重复导入问题
+            if (mode === 'production') {
+              rules.push({
+                test: /\.m?js$/,
+                exclude: /node_modules\/(?!(html-tag-js)\/).*/,
+                use: [
+                  {
+                    loader: 'babel-loader',
+                    options: {
+                      presets: ['@babel/preset-env'],
+                      plugins: [
+                        ['@babel/plugin-transform-runtime', {
+                          corejs: 3,
+                          helpers: true,
+                          regenerator: true,
+                          useESModules: false
+                        }]
+                      ]
+                    },
+                  },
+                ],
+              });
+            } else {
+              rules.push({
+                test: /\.m?js$/,
+                use: [
+                  'html-tag-js/jsx/tag-loader.js',
+                  {
+                    loader: 'babel-loader',
+                    options: {
+                      presets: ['@babel/preset-env'],
+                    },
+                  },
+                ],
+              });
+            }
+
+            const main = {
+              mode,
+              entry: {
+                main: './src/main.js',
+                console: './src/lib/console.js',
+              },
+              output: {
+                path: path.resolve(__dirname, 'www/build/'),
+                filename: '[name].js',
+                chunkFilename: '[name].chunk.js',
+                assetModuleFilename: '[name][ext]',
+                publicPath: '/build/',
+                clean: true,
+              },
+              module: {
+                rules,
+              },
+              resolve: {
+                fallback: {
+                  path: require.resolve('path-browserify'),
+                  crypto: false,
+                },
+                modules: ["node_modules", "src"],
+              },
+              plugins: [
+                new MiniCssExtractPlugin({
+                  filename: '[name].css',
+                }),
+              ],
+            };
+
+            return [main];
+          };
+          EOF
+          
+          # 替换原webpack配置
+          mv webpack.config.fixed.js webpack.config.js
+          echo "✅ Webpack配置已修复，移除了生产模式下的tag-loader"
 
       - name: Install project dependencies
         working-directory: ./acode_source
         run: |
-          # 使用Bun安装依赖
           bun install
-          # 安装钩子脚本所需的全局依赖
           bun add -g prettier prettier-plugin-java
 
-      - name: Install cordova cli
+      - name: Install cordova and setup platforms
         working-directory: ./acode_source
         run: |
-          # 从package.json读取cordova版本
+          # 安装cordova
           CORDOVA_VERSION=$(grep -oP '"cordova": "\K[^"]+' package.json)
-          echo "检测到Cordova版本: ${CORDOVA_VERSION}"
-          
-          # 使用npm安装指定版本的cordova
+          echo "安装Cordova版本: ${CORDOVA_VERSION}"
           npm install cordova@${CORDOVA_VERSION}
           
-          # 验证安装
-          echo "Cordova版本: $(npx cordova --version)"
-
-      - name: Prepare cordova project
-        working-directory: ./acode_source
-        run: |
-          # 运行项目的setup脚本（会安装cordova-android）
-          npm run setup
+          # 安装cordova-android
+          CORDOVA_ANDROID_VERSION=$(grep -oP '"cordova-android": "\K[^"]+' package.json)
+          echo "安装cordova-android版本: ${CORDOVA_ANDROID_VERSION}"
+          npm install cordova-android@${CORDOVA_ANDROID_VERSION}
           
-          # 验证cordova-android版本
-          if [ -f "package.json" ]; then
-            CORDOVA_ANDROID_VERSION=$(grep -oP '"cordova-android": "\K[^"]+' package.json)
-            echo "cordova-android版本: ${CORDOVA_ANDROID_VERSION}"
-          fi
+          # 添加Android平台
+          echo "添加Android平台..."
+          npx cordova platform add android@${CORDOVA_ANDROID_VERSION} --save
           
-          # 检查Android平台是否已添加
-          echo "检查Cordova平台状态:"
-          npx cordova platform list
+          echo "✅ Cordova和Android平台安装完成"
 
       - name: Execute application build
         working-directory: ./acode_source
         run: |
-          # 设置PATH确保node_modules/.bin可用
           export PATH="$PATH:$(pwd)/node_modules/.bin"
-          echo "Cordova路径: $(which cordova)"
-          cordova --version
           
-          # 调用项目自身的构建脚本
           echo "开始构建 Paid Release APK..."
+          echo "使用修复后的webpack配置构建前端..."
           
-          # 使用build.sh脚本构建
-          sh ./utils/scripts/build.sh paid p apk
+          # 直接运行webpack构建（生产模式）
+          npx webpack --progress --mode production
+          
+          echo "前端构建完成，开始Cordova构建..."
+          
+          # 使用Cordova构建APK
+          npx cordova build android --release
           
           # 验证构建产物
           if [ -f "platforms/android/app/build/outputs/apk/release/app-release.apk" ]; then
