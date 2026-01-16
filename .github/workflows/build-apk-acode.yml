@@ -128,10 +128,10 @@ jobs:
       - name: Fix webpack configuration
         working-directory: ./acode_source
         run: |
-          # 备份原webpack配置
-          cp webpack.config.js webpack.config.js.backup
+          # 首先检查原始webpack配置
+          echo "检查原始webpack配置..."
           
-          # 创建修复的webpack配置
+          # 创建修复的webpack配置，基于原始配置
           cat > webpack.config.fixed.js << 'EOF'
           const path = require('path');
           const fs = require('fs');
@@ -171,12 +171,11 @@ jobs:
       
             // 根据模式使用不同的JS加载器配置
             if (mode === 'production') {
-              // 生产模式：先使用tag-loader处理JSX，然后使用babel-loader
+              // 生产模式：不使用tag-loader，只使用babel-loader
               rules.push({
                 test: /\.m?js$/,
                 exclude: /node_modules\/(?!(html-tag-js)\/).*/,
                 use: [
-                  'html-tag-js/jsx/tag-loader.js',
                   {
                     loader: 'babel-loader',
                     options: {
@@ -186,25 +185,15 @@ jobs:
                           corejs: 3,
                           helpers: true,
                           regenerator: true,
-                          useESModules: false,
-                          // 禁用自动导入，避免重复导入tag
-                          absoluteRuntime: false,
-                          version: "7.23.9"
+                          useESModules: false
                         }]
-                      ],
-                      // 配置babel-loader忽略html-tag-js的导入
-                      exclude: [
-                        /node_modules\/html-tag-js/,
-                        function(modulePath) {
-                          return modulePath.indexOf('html-tag-js') !== -1;
-                        }
                       ]
                     },
                   },
                 ],
               });
             } else {
-              // 开发模式：简化配置
+              // 开发模式：使用tag-loader和babel-loader
               rules.push({
                 test: /\.m?js$/,
                 exclude: /node_modules\/(?!(html-tag-js)\/).*/,
@@ -244,10 +233,6 @@ jobs:
                   crypto: false,
                 },
                 modules: ["node_modules", "src"],
-                // 添加alias，确保html-tag-js只被导入一次
-                alias: {
-                  'html-tag-js': path.resolve(__dirname, 'node_modules/html-tag-js')
-                }
               },
               plugins: [
                 new MiniCssExtractPlugin({
