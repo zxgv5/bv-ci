@@ -41,21 +41,29 @@ sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string
 #     exit 1
 # fi
 
+# 尝试使用python修复“动态”页长按下方向键焦点左移出区问题
 FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/DynamicsScreen.kt"
-CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="$GITHUB_WORKSPACE/ci_source/patches/bv_fantasy/ci_DynamicsScreen_oc.kt"
+CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN="$GITHUB_WORKSPACE/ci_source/patches/bv_fantasy/ci_DynamicsScreen.kt"
 if [ ! -f "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" ]; then
     echo "❌ 错误：源文件 $CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN 不存在"
     exit 1
 fi
-
 cp -f "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"
-
-if [ -f "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" ] && cmp -s "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"; then
-    echo "🎉 成功：用 $CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN 覆盖 $FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"
-else
-    echo "❌ 失败：文件覆盖未生效"
+FANTASY_BV_SOURCE_ATSMKDABTV_DYNAMICVIEWMODEL="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/viewmodel/DynamicViewModel.kt"
+CI_FANTASY_BV_SOURCE_ATSMKDABTV_DYNAMICVIEWMODEL="$GITHUB_WORKSPACE/ci_source/patches/bv_fantasy/ci_DynamicViewModel.kt"
+if [ ! -f "$CI_FANTASY_BV_SOURCE_ATSMKDABTV_DYNAMICVIEWMODEL" ]; then
+    echo "❌ 错误：源文件 $CI_FANTASY_BV_SOURCE_ATSMKDABTV_DYNAMICVIEWMODEL 不存在"
     exit 1
 fi
+cp -f "$CI_FANTASY_BV_SOURCE_ATSMKDABTV_DYNAMICVIEWMODEL" "$FANTASY_BV_SOURCE_ATSMKDABTV_DYNAMICVIEWMODEL"
+# 结束尝试使用python修复“动态”页长按下方向键焦点左移出区问题
+
+# if [ -f "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" ] && cmp -s "$CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN" "$FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"; then
+#     echo "🎉 成功：用 $CI_FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN 覆盖 $FANTASY_BV_SOURCE_ATSMKDABTSMH_DYNAMICSSCREEN"
+# else
+#     echo "❌ 失败：文件覆盖未生效"
+#     exit 1
+# fi
  
 # TV端倍速范围调整
 # 使用sed的上下文匹配，确保只修改VideoPlayerPictureMenuItem.PlaySpeed相关的行
