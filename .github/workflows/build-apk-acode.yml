@@ -282,7 +282,7 @@ jobs:
           # 运行config.js进行配置
           # node utils/config.js p paid
           # 加 p 参数构建app启动卡住
-          node utils/config.js paid
+          node utils/config.js p paid
           # 使用修复后的webpack配置构建前端
           echo "构建前端资源..."
           # npx webpack --progress --mode production
