@@ -46,31 +46,9 @@ jobs:
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
 
       - name: Fix build-extras.gradle for release build
-        working-directory: ./acode_source
         run: |
-          cat > build-extras.gradle << 'EOF'
-          android {
-              compileSdkVersion 35
-              packagingOptions {
-                  pickFirst 'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
-              }
-              buildTypes {
-                  release {
-                      minifyEnabled false
-                      proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
-                  }
-              }
-          }
-          configurations {
-            all {
-                exclude module: 'commons-logging'
-                exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
-                exclude group: 'org.bouncycastle', module: 'bcpkix-jdk15on'
-                exclude group: 'org.bouncycastle', module: 'bcpkix-jdk18on'
-                exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
-            }
-          }
-          EOF
+          chmod +x ${{ github.workspace }}/ci_source/scripts/customize-acode.sh
+          ${{ github.workspace }}/ci_source/scripts/customize-acode.sh
 
       - name: Set up jdk 21
         uses: actions/setup-java@main
@@ -102,27 +80,22 @@ jobs:
         working-directory: ./acode_source
         run: |
           echo "正在替换 utils/config.js 文件..."
-          
           # 确保utils目录存在
           if [ ! -d "utils" ]; then
             mkdir -p utils
             echo "创建了 utils 目录"
           fi
-          
           # 从secrets中获取base64编码的config.js内容并解码
           if [ -z "${{ secrets.ACODE_BUILD_CONFIGJS_BASE64 }}" ]; then
             echo "错误: ACODE_BUILD_CONFIGJS_BASE64 secret 为空!"
             exit 1
           fi
-          
           echo "${{ secrets.ACODE_BUILD_CONFIGJS_BASE64 }}" | base64 -d > utils/config.js
-          
           # 验证文件是否成功写入
           if [ ! -f "utils/config.js" ]; then
             echo "错误: 无法创建 utils/config.js 文件!"
             exit 1
           fi
-          
           # 验证文件内容（检查是否是有效的JavaScript）
           if ! node -c utils/config.js 2>/dev/null; then
             echo "警告: utils/config.js 不是有效的JavaScript文件"
@@ -131,7 +104,6 @@ jobs:
           else
             echo "✓ utils/config.js 是有效的JavaScript文件"
           fi
-          
           # 显示文件大小和基本信息
           echo "文件信息:"
           ls -la utils/config.js
@@ -164,10 +136,8 @@ jobs:
           else
             SHORT_COMMIT_HASH=$(echo "${{ env.GIT_COMMIT }}" | cut -c 1-7)
           fi
-          
           UPDATED_VERSION="${{ steps.extract_version.outputs.VERSION }}-$SHORT_COMMIT_HASH"
           echo "Updated Version: $UPDATED_VERSION"
-          
           # Update config.xml with the new version
           sed -i "s/version=\"${{ steps.extract_version.outputs.VERSION }}\"/version=\"$UPDATED_VERSION\"/g" config.xml
           echo "Updated version in config.xml"
@@ -192,21 +162,18 @@ jobs:
         run: |
           node utils/storage_manager.mjs y
           npm run build paid apk
-          
+
       - name: Build release apk files with gradle
         working-directory: ./acode_source
         run: |
           cd platforms/android
           ./gradlew clean
           ./gradlew assembleRelease
-          
           # 查找生成的APK文件
           echo "Looking for APK files..."
           find app/build/outputs/apk -name "*.apk" -type f
-          
           # 确保目录存在
           mkdir -p /tmp
-          
           # 复制release APK到临时目录
           if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
             echo "Found unsigned release APK"
@@ -224,7 +191,6 @@ jobs:
               fi
             done
           fi
-          
           # 验证APK文件存在
           ls -la /tmp/acode-unsigned.apk || echo "APK file not found!"
 
@@ -234,32 +200,21 @@ jobs:
           # 设置Android build-tools路径
           export ANDROID_HOME=/usr/local/lib/android/sdk
           export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
-          
           # 验证apksigner可用
           which apksigner
           apksigner --version
-          
-          echo "APK file size before signing:"
-          ls -lh /tmp/acode-unsigned.apk
-          
+          mkdir -p "${{ github.workspace }}/dist"
           # 使用apksigner对APK签名
           apksigner sign \
             --ks "${{ env.STORE_FILE_PATH }}" \
             --ks-pass "pass:${{ env.KEYSTORE_PASSWORD }}" \
             --ks-key-alias "${{ env.KEY_ALIAS }}" \
             --ks-type PKCS12 \
-            --out "/tmp/acode-${{ env.BUILD_DATE }}.apk" \
+            --out "${{ github.workspace }}/dist/acode-${{ env.BUILD_DATE }}.apk" \
             /tmp/acode-unsigned.apk
-            
-          echo "APK file size after signing:"
-          ls -lh "/tmp/acode-${{ env.BUILD_DATE }}.apk"
-          
           # 验证签名
           apksigner verify --verbose "/tmp/acode-${{ env.BUILD_DATE }}.apk"
-          
-          # 列出所有/tmp目录下的acode相关文件
-          echo "Files in /tmp directory:"
-          ls -la /tmp/acode-*
+
 
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
@@ -267,5 +222,5 @@ jobs:
           # 文件路径为基于github.workspace的绝对路径
           P12_KEYSTORE_PATH: "${{ env.BUILD_JSON_PATH }} ${{ env.STORE_FILE_PATH }}"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
-          BUILD_ARTIFACT_PATH: "/tmp/acode-${{ env.BUILD_DATE }}.apk"
+          BUILD_ARTIFACT_PATH: "./dist/acode-${{ env.BUILD_DATE }}.apk"
           RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-acode"

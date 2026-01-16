@@ -1,0 +1,21 @@
+android {
+    compileSdkVersion 36
+    packagingOptions {
+        pickFirst 'META-INF/versions/9/OSGI-INF/MANIFEST.MF'
+    }
+    buildTypes {
+        release {
+            minifyEnabled false
+            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.txt'
+        }
+    }
+}
+configurations {
+  all {
+      exclude module: 'commons-logging'
+      exclude group: 'org.bouncycastle', module: 'bcprov-jdk15on'
+      exclude group: 'org.bouncycastle', module: 'bcpkix-jdk15on'
+      exclude group: 'org.bouncycastle', module: 'bcpkix-jdk18on'
+      exclude group: 'org.bouncycastle', module: 'bcprov-jdk18on'
+  }
+}
