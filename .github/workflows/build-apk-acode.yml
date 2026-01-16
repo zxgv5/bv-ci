@@ -128,13 +128,10 @@ jobs:
       - name: Fix webpack duplicate import issue
         working-directory: ./acode_source
         run: |
-          # 临时修复：修改有问题的文件，移除重复的tag导入
-          echo "修复重复导入问题..."
-          
-          # 1. 备份原webpack配置
+          # 备份原webpack配置
           cp webpack.config.js webpack.config.js.backup
           
-          # 2. 修改webpack配置，在生产模式下移除tag-loader
+          # 修改webpack配置，在生产模式下移除tag-loader
           cat > webpack.config.fixed.js << 'EOF'
           const path = require('path');
           const fs = require('fs');
@@ -246,7 +243,6 @@ jobs:
           };
           EOF
           
-          # 3. 替换原webpack配置
           mv webpack.config.fixed.js webpack.config.js
           echo "✅ Webpack配置已修复"
 
@@ -256,27 +252,37 @@ jobs:
           bun install
           bun add -g prettier prettier-plugin-java
 
-      - name: Setup cordova environment
+      - name: Fix cordova android platform issue
         working-directory: ./acode_source
         run: |
-          # 使用项目自己的setup脚本
-          echo "运行项目setup脚本..."
-          npm run setup
+          # Cordova 13.0.0 的一个bug：在添加平台时会错误地寻找android/package.json
+          # 解决方法：创建空的android目录和package.json文件
+          echo "修复Cordova Android平台添加问题..."
           
-          # 验证Cordova环境
-          echo "检查Cordova环境..."
-          npx cordova --version
+          # 1. 创建android目录
+          mkdir -p android
           
-          # 检查Android平台
-          echo "检查Android平台..."
-          if [ -d "platforms/android" ]; then
-            echo "✅ Android平台已存在"
-          else
-            echo "添加Android平台..."
-            npx cordova platform add android@10
-          fi
+          # 2. 在android目录中创建一个空的package.json文件
+          cat > android/package.json << 'EOF'
+          {
+            "name": "android",
+            "version": "1.0.0",
+            "description": "Placeholder package.json for Cordova Android platform"
+          }
+          EOF
           
-          echo "✅ Cordova环境设置完成"
+          echo "✅ 已创建android/package.json占位文件"
+
+      - name: Add cordova android platform
+        working-directory: ./acode_source
+        run: |
+          echo "添加Cordova Android平台..."
+          
+          # 方法1：使用npx cordova添加平台
+          # 指定具体的版本号，避免使用范围选择器 ^
+          npx cordova platform add android@14.0.1 --save
+          
+          echo "✅ Android平台添加完成"
 
       - name: Build webpack assets
         working-directory: ./acode_source
