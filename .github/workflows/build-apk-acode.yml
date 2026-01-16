@@ -173,26 +173,26 @@ jobs:
           echo "Looking for APK files..."
           find app/build/outputs/apk -name "*.apk" -type f
           # 确保目录存在
-          mkdir -p /tmp
+          mkdir -p "${{ github.workspace }}/dist"
           # 复制release APK到临时目录
           if [ -f "app/build/outputs/apk/release/app-release-unsigned.apk" ]; then
             echo "Found unsigned release APK"
-            cp app/build/outputs/apk/release/app-release-unsigned.apk /tmp/acode-unsigned.apk
-            echo "Copied to /tmp/acode-unsigned.apk"
+            cp app/build/outputs/apk/release/app-release-unsigned.apk "${{ github.workspace }}/dist/acode-unsigned.apk"
+            echo "Copied to ${{ github.workspace }}/dist/acode-unsigned.apk"
           else
             echo "Checking for signed APK..."
             # 尝试查找已签名的APK
             for apk in app/build/outputs/apk/release/*.apk; do
               if [[ "$apk" != *"unsigned"* ]] && [[ -f "$apk" ]]; then
                 echo "Found signed APK: $apk"
-                cp "$apk" /tmp/acode-unsigned.apk
-                echo "Copied to /tmp/acode-unsigned.apk"
+                cp "$apk" "${{ github.workspace }}/dist/acode-unsigned.apk"
+                echo "Copied to ${{ github.workspace }}/dist/acode-unsigned.apk"
                 break
               fi
             done
           fi
           # 验证APK文件存在
-          ls -la /tmp/acode-unsigned.apk || echo "APK file not found!"
+          ls -la "${{ github.workspace }}/dist/acode-unsigned.apk" || echo "APK file not found!"
 
       - name: Sign the apk (pkcs12)
         working-directory: ./acode_source
@@ -211,9 +211,9 @@ jobs:
             --ks-key-alias "${{ env.KEY_ALIAS }}" \
             --ks-type PKCS12 \
             --out "${{ github.workspace }}/dist/acode-${{ env.BUILD_DATE }}.apk" \
-            /tmp/acode-unsigned.apk
+            "${{ github.workspace }}/dist/acode-unsigned.apk"
           # 验证签名
-          apksigner verify --verbose "/tmp/acode-${{ env.BUILD_DATE }}.apk"
+          apksigner verify --verbose "${{ github.workspace }}/dist/acode-${{ env.BUILD_DATE }}.apk"
 
 
       - name: Erase keystore, encrypt package and create release
