@@ -80,6 +80,25 @@ fun DynamicsScreen(
     val isAtBottomRow by remember {
         derivedStateOf { currentRow >= 0 && currentRow >= totalRows - 1 }
     }
+    // 判断是否接近列表末尾（最后3行），用于在加载卡顿时防止焦点移出
+    val isNearBottom by remember {
+        derivedStateOf { 
+            currentRow >= 0 && totalRows > 0 && currentRow >= totalRows - 3
+        }
+    }
+    // 判断是否接近列表末尾（最后12个项，约3行），用于在加载卡顿时防止焦点移出
+    val isNearBottomByIndex by remember {
+        derivedStateOf {
+            currentFocusedIndex >= 0 && dynamicViewModel.dynamicVideoList.isNotEmpty() &&
+            currentFocusedIndex >= dynamicViewModel.dynamicVideoList.size - 12
+        }
+    }
+    // 判断是否应该阻止焦点向下移动：当正在加载且接近列表末尾时
+    val shouldBlockDownKey by remember {
+        derivedStateOf {
+            dynamicViewModel.loadingVideo && (isNearBottom || isNearBottomByIndex)
+        }
+    }
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         VideoInfoActivity.actionStart(
@@ -135,11 +154,16 @@ fun DynamicsScreen(
                             return@onPreviewKeyEvent true
                         }
                         
-                        // 处理下方向键：当在最下面一行且正在加载或没有更多数据时，阻止焦点向下移动
+                        // 处理下方向键：防止在加载卡顿时焦点移出页面
+                        // 当正在加载且焦点接近列表末尾（最后3行或最后12个项）时，阻止焦点向下移动
                         // 这样可以防止当网络加载慢或无法加载时，焦点因为找不到下一个可聚焦项目而向左移动并移出页面
                         if(event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
-                            if (isAtBottomRow && (dynamicViewModel.loadingVideo || !dynamicViewModel.videoHasMore)) {
-                                // 阻止焦点向下移动，防止焦点移出页面
+                            // 情况1：正在加载且接近列表末尾，阻止向下移动
+                            if (shouldBlockDownKey) {
+                                return@onPreviewKeyEvent true
+                            }
+                            // 情况2：在最下面一行且没有更多数据，阻止向下移动
+                            if (isAtBottomRow && !dynamicViewModel.videoHasMore) {
                                 return@onPreviewKeyEvent true
                             }
                         }
