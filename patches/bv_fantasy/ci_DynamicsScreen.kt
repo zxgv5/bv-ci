@@ -53,6 +53,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
+// 定义常量
+private const val GRID_COLUMNS = 4
+private const val PRELOAD_ROW_COUNT = 6
+private val PRELOAD_ITEM_COUNT = GRID_COLUMNS * PRELOAD_ROW_COUNT
+private const val BOTTOM_BUFFER_ROW_COUNT = 3
+
 @Composable
 fun DynamicsScreen(
     modifier: Modifier = Modifier,
@@ -62,37 +68,53 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var currentFocusedIndex by remember { mutableIntStateOf(-1) }
+    
+    // 使用常量
     val shouldLoadMore by remember {
-        derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex + 12 > dynamicViewModel.dynamicVideoList.size }
+        derivedStateOf { 
+            dynamicViewModel.dynamicVideoList.isNotEmpty() && 
+            currentFocusedIndex + PRELOAD_ITEM_COUNT > dynamicViewModel.dynamicVideoList.size 
+        }
     }
+    
     val showTip by remember {
         derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex >= 0 }
     }
-    // 计算当前焦点所在的行（每行4列）
+    
+    // 计算当前焦点所在的行（使用常量）
     val currentRow by remember {
-        derivedStateOf { if (currentFocusedIndex >= 0) currentFocusedIndex / 4 else -1 }
+        derivedStateOf { 
+            if (currentFocusedIndex >= 0) currentFocusedIndex / GRID_COLUMNS else -1 
+        }
     }
-    // 计算总行数
+    
+    // 计算总行数（使用常量）
     val totalRows by remember {
-        derivedStateOf { (dynamicViewModel.dynamicVideoList.size + 3) / 4 } // 向上取整
+        derivedStateOf { 
+            (dynamicViewModel.dynamicVideoList.size + GRID_COLUMNS - 1) / GRID_COLUMNS // 向上取整
+        }
     }
+    
     // 判断是否在最下面一行
     val isAtBottomRow by remember {
         derivedStateOf { currentRow >= 0 && currentRow >= totalRows - 1 }
     }
-    // 判断是否接近列表末尾（最后3行），用于在加载卡顿时防止焦点移出
+    
+    // 判断是否接近列表末尾（使用常量）
     val isNearBottom by remember {
         derivedStateOf { 
-            currentRow >= 0 && totalRows > 0 && currentRow >= totalRows - 3
+            currentRow >= 0 && totalRows > 0 && currentRow >= totalRows - BOTTOM_BUFFER_ROW_COUNT
         }
     }
-    // 判断是否接近列表末尾（最后12个项，约3行），用于在加载卡顿时防止焦点移出
+    
+    // 判断是否接近列表末尾（使用常量）
     val isNearBottomByIndex by remember {
         derivedStateOf {
             currentFocusedIndex >= 0 && dynamicViewModel.dynamicVideoList.isNotEmpty() &&
-            currentFocusedIndex >= dynamicViewModel.dynamicVideoList.size - 12
+            currentFocusedIndex >= dynamicViewModel.dynamicVideoList.size - PRELOAD_ITEM_COUNT
         }
     }
+    
     // 判断是否应该阻止焦点向下移动：当正在加载且接近列表末尾时
     val shouldBlockDownKey by remember {
         derivedStateOf {
@@ -117,7 +139,7 @@ fun DynamicsScreen(
         )
     }
 
-    //不能直接使用 LaunchedEffect(currentFocusedIndex)，会导致整个页面重组
+    // 不能直接使用 LaunchedEffect(currentFocusedIndex)，会导致整个页面重组
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
             scope.launch(Dispatchers.IO) {
@@ -142,22 +164,22 @@ fun DynamicsScreen(
             LazyVerticalGrid(
                 modifier = modifier
                     .fillMaxSize()
-                    .onFocusChanged{
+                    .onFocusChanged {
                         if (!it.isFocused) {
                             currentFocusedIndex = -1
                         }
                     }
                     .onPreviewKeyEvent { event ->
                         // 处理菜单键
-                        if(event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
+                        if (event.type == KeyEventType.KeyUp && event.key == Key.Menu) {
                             context.startActivity(Intent(context, FollowActivity::class.java))
                             return@onPreviewKeyEvent true
                         }
-                        
+
                         // 处理下方向键：防止在加载卡顿时焦点移出页面
                         // 当正在加载且焦点接近列表末尾（最后3行或最后12个项）时，阻止焦点向下移动
                         // 这样可以防止当网络加载慢或无法加载时，焦点因为找不到下一个可聚焦项目而向左移动并移出页面
-                        if(event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
+                        if (event.type == KeyEventType.KeyDown && event.key == Key.DirectionDown) {
                             // 情况1：正在加载且接近列表末尾，阻止向下移动
                             if (shouldBlockDownKey) {
                                 return@onPreviewKeyEvent true
@@ -167,10 +189,10 @@ fun DynamicsScreen(
                                 return@onPreviewKeyEvent true
                             }
                         }
-                        
+
                         false
                     },
-                columns = GridCells.Fixed(4),
+                columns = GridCells.Fixed(GRID_COLUMNS), // 使用常量
                 state = lazyGridState,
                 contentPadding = PaddingValues(padding),
                 verticalArrangement = Arrangement.spacedBy(spacedBy),
@@ -193,7 +215,7 @@ fun DynamicsScreen(
                             )
                         },
                         onClick = { onClickVideo(item) },
-                        onLongClick = {onLongClickVideo(item) },
+                        onLongClick = { onLongClickVideo(item) },
                         onFocus = { currentFocusedIndex = index }
                     )
                 }
