@@ -104,7 +104,7 @@ class DynamicViewModel(
                     lastException = java.util.concurrent.TimeoutException("Request timeout after 30 seconds")
                     if (attempt < maxRetries) {
                         logger.fWarn { "Load dynamic video timeout, retrying... (attempt ${attempt + 1}/${maxRetries + 1})" }
-                        delay(1000 * (attempt + 1)) // 递增延迟重试
+                        delay(1000L * (attempt + 1)) // 递增延迟重试
                     }
                 }
             } catch (e: Throwable) {
@@ -123,7 +123,7 @@ class DynamicViewModel(
                     }
                     else -> {
                         if (attempt < maxRetries) {
-                            delay(1000 * (attempt + 1)) // 递增延迟重试
+                            delay(1000L * (attempt + 1)) // 递增延迟重试
                         }
                     }
                 }
