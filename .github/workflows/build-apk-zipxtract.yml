@@ -84,6 +84,7 @@ jobs:
         run: |
           echo "Building PS release..."
           chmod +x ./gradlew
+          ./gradlew clean
           ./gradlew assemblePsRelease
 
       - name: Find release apks
