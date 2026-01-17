@@ -32,7 +32,7 @@ FANTASY_BV_CONTROLLERVIDEOINFO_KT="$FANTASY_BV_SOURCE_ROOT/player/tv/src/main/ko
 # 使用捕获组保留原缩进
 sed -i 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = focusRequesters["danmaku"] ?: FocusRequester()/' "$FANTASY_BV_CONTROLLERVIDEOINFO_KT"
 
-# 6、隐藏左侧边栏中的“搜索”、“UGC”和“PGC”三个侧边栏页面导航按钮，尤其是UGC和PGC，太卡了
+# 6、隐藏左侧边栏中的“搜索”、“UGC”和“PGC”三个页面导航按钮，尤其是UGC和PGC，太卡了
 FANTASY_BV_SOURCE_ATSMKDABTSM_DRAWERCONTENT="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/DrawerContent.kt"
 sed -i \
   -e 's/^\([[:space:]]*\)DrawerItem\.Search,/\1\/\/DrawerItem.Search,/' \
@@ -49,6 +49,15 @@ sed -i \
   "$FANTASY_BV_TOPNAV_KT"
 
 # - - - - - - - - - - - - - - - - - -复杂或容易歧义的修改，用源文件替换实现 - - - - - - - - - - - - - - - - - -
+# 6、MainScreen.kt进行覆盖，配合上面对隐藏左侧边栏中的“搜索”、“UGC”和“PGC”三个页面导航按钮所作修改
+FANTASY_BV_MAINSCREEN_KT="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/MainScreen.kt"
+CI_FANTASY_BV_MAINSCREEN_KT="$GITHUB_WORKSPACE/ci_source/patches/bv_fantasy/ci_MainScreen.kt"
+if [ ! -f "$CI_FANTASY_BV_MAINSCREEN_KT" ]; then
+    echo "❌ 错误：源文件 $CI_FANTASY_BV_MAINSCREEN_KT 不存在"
+    exit 1
+fi
+cp -f "$CI_FANTASY_BV_MAINSCREEN_KT" "$FANTASY_BV_MAINSCREEN_KT"
+
 # 7、对HomeContent.kt进行覆盖，配合上面对隐藏顶部“追番”和“稍后看”两个导航标签所作修改
 FANTASY_BV_HOMECONTENT_KT="$FANTASY_BV_SOURCE_ROOT/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/HomeContent.kt"
 CI_FANTASY_BV_HOMECONTENT_KT="$GITHUB_WORKSPACE/ci_source/patches/bv_fantasy/ci_HomeContent.kt"

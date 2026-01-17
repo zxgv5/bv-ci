@@ -33,9 +33,9 @@ import dev.aaa1115910.bv.tv.screens.main.home.DynamicsScreen
 import dev.aaa1115910.bv.tv.screens.main.home.PopularScreen
 import dev.aaa1115910.bv.tv.screens.main.home.RecommendScreen
 import dev.aaa1115910.bv.tv.screens.user.FavoriteScreen
-//import dev.aaa1115910.bv.tv.screens.user.FollowingSeasonScreen
+import dev.aaa1115910.bv.tv.screens.user.FollowingSeasonScreen
 import dev.aaa1115910.bv.tv.screens.user.HistoryScreen
-//import dev.aaa1115910.bv.tv.screens.user.ToViewScreen
+import dev.aaa1115910.bv.tv.screens.user.ToViewScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.requestFocus
@@ -44,9 +44,9 @@ import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import dev.aaa1115910.bv.viewmodel.home.RecommendViewModel
 import dev.aaa1115910.bv.viewmodel.user.FavoriteViewModel
-//import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
+import dev.aaa1115910.bv.viewmodel.user.FollowingSeasonViewModel
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
-//import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
+import dev.aaa1115910.bv.viewmodel.user.ToViewViewModel
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -62,9 +62,9 @@ fun HomeContent(
     popularViewModel: PopularViewModel = koinViewModel(),
     dynamicViewModel: DynamicViewModel = koinViewModel(),
     favouriteViewModel: FavoriteViewModel = koinViewModel(),
-    //followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
+    followingSeasonViewModel: FollowingSeasonViewModel = koinViewModel(),
     historyViewModel: HistoryViewModel = koinViewModel(),
-    //toViewViewModel: ToViewViewModel = koinViewModel(),
+    toViewViewModel: ToViewViewModel = koinViewModel(),
     userViewModel: UserViewModel = koinViewModel()
 ) {
     val scope = rememberCoroutineScope()
@@ -74,9 +74,9 @@ fun HomeContent(
     val popularState = rememberLazyGridState()
     val dynamicState = rememberLazyGridState()
     val favoriteState = rememberLazyGridState()
-    //val followingSeasonState = rememberLazyGridState()
+    val followingSeasonState = rememberLazyGridState()
     val historyState = rememberLazyGridState()
-    //val toViewState = rememberLazyGridState()
+    val toViewState = rememberLazyGridState()
     
     var focusOnContent by remember { mutableStateOf(false) }
     var topNavHasFocus by remember { mutableStateOf(false) }
@@ -120,11 +120,11 @@ fun HomeContent(
 //                    }
                 }
 
-//                HomeTopNavItem.FollowingSeason -> {
+                HomeTopNavItem.FollowingSeason -> {
 //                    if (followingSeasonViewModel.followingSeasons.isEmpty() && userViewModel.isLogin) {
 //                        followingSeasonViewModel.loadMore()
 //                    }
-//                }
+                }
 
                 HomeTopNavItem.History -> {
 //                    if (historyViewModel.histories.isEmpty() && userViewModel.isLogin) {
@@ -132,11 +132,11 @@ fun HomeContent(
 //                    }
                 }
 
-//                HomeTopNavItem.ToView -> {
+                HomeTopNavItem.ToView -> {
 //                    if (toViewViewModel.histories.isEmpty() && userViewModel.isLogin) {
 //                        toViewViewModel.update()
 //                    }
-//                }
+                }
             }
         }
     }
@@ -162,9 +162,9 @@ fun HomeContent(
                     HomeTopNavItem.Popular -> popularState
                     HomeTopNavItem.Dynamics -> dynamicState
                     HomeTopNavItem.Favorite -> favoriteState
-                    //HomeTopNavItem.FollowingSeason -> followingSeasonState
+                    HomeTopNavItem.FollowingSeason -> followingSeasonState
                     HomeTopNavItem.History -> historyState
-                    //HomeTopNavItem.ToView -> toViewState
+                    HomeTopNavItem.ToView -> toViewState
                 }
             ) {
                 firstVisibleItemIndex == 0 && firstVisibleItemScrollOffset == 0
@@ -242,12 +242,12 @@ fun HomeContent(
                             }
                         }
 
-                        //HomeTopNavItem.FollowingSeason -> {
-                        //    if (userViewModel.isLogin) {
-                        //        followingSeasonViewModel.clearData()
-                        //        followingSeasonViewModel.loadMore()
-                        //    }
-                        //}
+                        HomeTopNavItem.FollowingSeason -> {
+                            if (userViewModel.isLogin) {
+                                followingSeasonViewModel.clearData()
+                                followingSeasonViewModel.loadMore()
+                            }
+                        }
 
                         HomeTopNavItem.History -> {
                             if (userViewModel.isLogin) {
@@ -256,12 +256,12 @@ fun HomeContent(
                             }
                         }
 
-                        //HomeTopNavItem.ToView -> {
-                        //    if (userViewModel.isLogin) {
-                        //        toViewViewModel.clearData()
-                        //        toViewViewModel.update()
-                        //    }
-                        //}
+                        HomeTopNavItem.ToView -> {
+                            if (userViewModel.isLogin) {
+                                toViewViewModel.clearData()
+                                toViewViewModel.update()
+                            }
+                        }
                     }
                 },
                 onLeftKeyEvent = {
@@ -308,13 +308,13 @@ fun HomeContent(
                             LoginRequiredScreen()
                         }
                     }
-                    //HomeTopNavItem.FollowingSeason -> {
-                    //    if (userViewModel.isLogin) {
-                    //        FollowingSeasonScreen(showPageTitle = false)
-                    //    } else {
-                    //        LoginRequiredScreen()
-                    //    }
-                    //}
+                    HomeTopNavItem.FollowingSeason -> {
+                        if (userViewModel.isLogin) {
+                            FollowingSeasonScreen(showPageTitle = false)
+                        } else {
+                            LoginRequiredScreen()
+                        }
+                    }
                     HomeTopNavItem.History -> {
                         if (userViewModel.isLogin) {
                             HistoryScreen(showPageTitle = false)
@@ -322,13 +322,13 @@ fun HomeContent(
                             LoginRequiredScreen()
                         }
                     }
-                    //HomeTopNavItem.ToView -> {
-                    //    if (userViewModel.isLogin) {
-                    //        ToViewScreen(showPageTitle = false)
-                    //    } else {
-                    //        LoginRequiredScreen()
-                    //    }
-                    //}
+                    HomeTopNavItem.ToView -> {
+                        if (userViewModel.isLogin) {
+                            ToViewScreen(showPageTitle = false)
+                        } else {
+                            LoginRequiredScreen()
+                        }
+                    }
                 }
             }
         }

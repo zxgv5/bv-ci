@@ -8,10 +8,10 @@ set -e  # 遇到错误立即退出，避免CI静默失败
 
 ACODE_SOURCE_ROOT="$GITHUB_WORKSPACE/acode_source"
 
-ACODE_SOURCE_BUILD_EXTRAS_GRADLE="$ACODE_SOURCE_ROOT/build-extras.gradle"
-CI_ACODE_SOURCE_BUILD_EXTRAS_GRADLE="$GITHUB_WORKSPACE/ci_source/patches/acode/ci_build-extras.gradle"
-if [ ! -f "$CI_ACODE_SOURCE_BUILD_EXTRAS_GRADLE" ]; then
-    echo "❌ 错误：源文件 $CI_ACODE_SOURCE_BUILD_EXTRAS_GRADLE 不存在"
+ACODE_BUILD_EXTRAS_GRADLE="$ACODE_SOURCE_ROOT/build-extras.gradle"
+CI_ACODE_BUILD_EXTRAS_GRADLE="$GITHUB_WORKSPACE/ci_source/patches/acode/ci_build-extras.gradle"
+if [ ! -f "$CI_ACODE_BUILD_EXTRAS_GRADLE" ]; then
+    echo "❌ 错误：源文件 $CI_ACODE_BUILD_EXTRAS_GRADLE 不存在"
     exit 1
 fi
-cp -f "$CI_ACODE_SOURCE_BUILD_EXTRAS_GRADLE" "$ACODE_SOURCE_BUILD_EXTRAS_GRADLE"
+cp -f "$CI_ACODE_BUILD_EXTRAS_GRADLE" "$ACODE_BUILD_EXTRAS_GRADLE"
