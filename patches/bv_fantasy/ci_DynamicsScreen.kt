@@ -55,9 +55,9 @@ import org.koin.androidx.compose.koinViewModel
 
 // 定义常量
 private const val GRID_COLUMNS = 4
-private const val PRELOAD_ROW_COUNT = 4
+private const val PRELOAD_ROW_COUNT = 5
 private val PRELOAD_ITEM_COUNT = GRID_COLUMNS * PRELOAD_ROW_COUNT
-private const val BOTTOM_BUFFER_ROW_COUNT = 3
+private const val BOTTOM_BUFFER_ROW_COUNT = 5
 
 @Composable
 fun DynamicsScreen(
