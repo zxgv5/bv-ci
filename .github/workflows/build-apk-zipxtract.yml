@@ -85,7 +85,8 @@ jobs:
           echo "Building PS release..."
           chmod +x ./gradlew
           ./gradlew clean
-          ./gradlew assemblePsRelease
+          ./gradlew bundlePsRelease
+          # ./gradlew assemblePsRelease
 
       - name: Find release apks
         working-directory: ./zipxtract_source
