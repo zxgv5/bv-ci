@@ -135,15 +135,14 @@ fun DynamicsScreen(
                                 val row = index / 4
                                 val col = index % 4
 
-                                val rightRq = requesters.getOrElse(index + 1) { FocusRequester.Default }
-                                val leftRq  = requesters.getOrElse(index - 1) { FocusRequester.Default }
-                                val downRq  = if (index + 4 < dynamicViewModel.dynamicVideoList.size) requesters[index + 4] else FocusRequester.Default
-                                val upRq    = if (index - 4 >= 0) requesters[index - 4] else FocusRequester.Default
-
-                                right = rightRq
-                                left  = leftRq
-                                down  = downRq
-                                up    = upRq
+                                right = if (col == 3) FocusRequester.Default
+                                        else requesters[index + 1] ?: FocusRequester.Default
+                                left  = if (col == 0) FocusRequester.Default
+                                        else requesters[index - 1] ?: FocusRequester.Default
+                                down  = if (index + 4 < dynamicViewModel.dynamicVideoList.size) requesters[index + 4] ?: FocusRequester.Default
+                                        else FocusRequester.Default
+                                up    = if (index - 4 >= 0) requesters[index - 4] ?: FocusRequester.Default
+                                        else FocusRequester.Default
                             }
                             .onKeyEvent { keyEvent ->
                                 val nav = keyEvent.nativeKeyEvent
