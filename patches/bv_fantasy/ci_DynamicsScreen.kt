@@ -1,6 +1,7 @@
 package dev.aaa1115910.bv.tv.screens.main.home
 
 import android.content.Intent
+import android.view.KeyEvent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.*
 import androidx.compose.runtime.*
@@ -21,6 +22,7 @@ import coil.compose.AsyncImage
 import dev.aaa1115910.biliapi.entity.user.DynamicVideo
 import dev.aaa1115910.bv.tv.component.LoadingTip
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
+import dev.aaa1115910.bv.entity.proxy.ProxyArea
 import dev.aaa1115910.bv.tv.R
 import dev.aaa1115910.bv.tv.activities.user.FollowActivity
 import dev.aaa1115910.bv.tv.activities.video.UpInfoActivity
@@ -73,7 +75,6 @@ fun DynamicsScreen(
         }
     }
 
-    // 1. 为每个卡片预生成 FocusRequester
     val requesters = remember { mutableStateMapOf<Int, FocusRequester>() }
 
     if (dynamicViewModel.isLogin) {
@@ -129,9 +130,7 @@ fun DynamicsScreen(
                         onLongClick = { onLongClickVideo(item) },
                         onFocus = { currentFocusedIndex = index },
                         modifier = Modifier
-                            // 2. 绑定焦点节点
                             .focusRequester(focusRequester)
-                            // 3. 横向/纵向焦点锁定
                             .focusProperties {
                                 val row = index / 4
                                 val col = index % 4
@@ -144,7 +143,6 @@ fun DynamicsScreen(
                                 up    = if (index - 4 >= 0) requesters[index - 4]
                                         else FocusRequester.Default
                             }
-                            // 4. 长按 DOWN 且最后一行可见时吃掉事件
                             .onKeyEvent { keyEvent ->
                                 val nav = keyEvent.nativeKeyEvent
                                 if (nav.action == KeyEvent.ACTION_DOWN
