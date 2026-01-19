@@ -4,7 +4,7 @@
 set -e  # 遇到错误立即退出，避免ci静默失败
 FANTASY_BV_SOURCE_ROOT="$GITHUB_WORKSPACE/fantasy-bv-source"
 # - - - - - - - - - - - - - - - - - -简单且无模糊的修改用sed等实现 - - - - - - - - - - - - - - - - - -
- # 1、版本号规则调整，避免负数
+# 1、版本号规则调整，避免负数
 # 2、修改包名
 FANTASY_BV_APPCONFIGURATION_KT="$FANTASY_BV_SOURCE_ROOT/buildSrc/src/main/kotlin/AppConfiguration.kt"
 sed -i \
@@ -64,12 +64,12 @@ ci_source_patch \
     "HomeContent.kt" \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 # 8、尝试修复“动态”页长按下方向键焦点左移出区问题
-ci_source_patch \
-    "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/component" \
-    "TvLazyVerticalGrid.kt" \
-    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+# ci_source_patch \
+#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/component" \
+#     "TvLazyVerticalGrid.kt" \
+#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
-ci_source_patch \
-    "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
-    "DynamicsScreen.kt" \
-    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+# ci_source_patch \
+#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
+#     "DynamicsScreen.kt" \
+#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
