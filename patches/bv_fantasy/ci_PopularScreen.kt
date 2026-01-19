@@ -1,5 +1,5 @@
 package dev.aaa1115910.bv.tv.screens.main.home
-
+ 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -8,7 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.TvLazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.runtime.Composable
@@ -36,7 +36,7 @@ import dev.aaa1115910.bv.viewmodel.home.PopularViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
-
+ 
 @Composable
 fun PopularScreen(
     modifier: Modifier = Modifier,
@@ -49,11 +49,11 @@ fun PopularScreen(
     val shouldLoadMore by remember {
         derivedStateOf { popularViewModel.popularVideoList.isNotEmpty() && currentFocusedIndex + 12 > popularViewModel.popularVideoList.size }
     }
-
+ 
     val onClickVideo: (UgcItem) -> Unit = { ugcItem ->
         VideoInfoActivity.actionStart(context, ugcItem.aid)
     }
-
+ 
     val onLongClickVideo: (UgcItem) -> Unit = { ugcItem ->
         UpInfoActivity.actionStart(
             context,
@@ -62,7 +62,7 @@ fun PopularScreen(
             face = ugcItem.authorFace
         )
     }
-
+ 
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
             scope.launch(Dispatchers.IO) {
@@ -70,17 +70,18 @@ fun PopularScreen(
             }
         }
     }
-
+ 
     val padding = dimensionResource(R.dimen.grid_padding)
     val spacedBy = dimensionResource(R.dimen.grid_spacedBy)
     ProvideListBringIntoViewSpec {
-        LazyVerticalGrid(
+        TvLazyVerticalGrid(
             modifier = modifier.fillMaxSize(),
             columns = GridCells.Fixed(4),
             state = lazyGridState,
             contentPadding = PaddingValues(padding),
             verticalArrangement = Arrangement.spacedBy(spacedBy),
-            horizontalArrangement = Arrangement.spacedBy(spacedBy)
+            horizontalArrangement = Arrangement.spacedBy(spacedBy),
+            pivotFraction = 0.3f // 可选，使用默认值
         ) {
             itemsIndexed(popularViewModel.popularVideoList) { index, item ->
                 SmallVideoCard(
@@ -98,11 +99,10 @@ fun PopularScreen(
                     },
                     onClick = { onClickVideo(item) },
                     onLongClick = {onLongClickVideo(item) },
-                    // onFocus = { currentFocusedIndex = index }
-                    onFocus = {} // 添加这一行
+                    onFocus = { currentFocusedIndex = index }
                 )
             }
-
+ 
             if (popularViewModel.loading) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     Box(
