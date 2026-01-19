@@ -62,17 +62,19 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 使用可见项索引来判断是否需要加载更多
-    val shouldLoadMore by remember {
+    // 修复：使用正确的derivedStateOf语法
+    val shouldLoadMore = remember(lazyGridState, dynamicViewModel.dynamicVideoList) {
         derivedStateOf {
             val visibleItems = lazyGridState.layoutInfo.visibleItemsInfo
-            if (visibleItems.isEmpty() || dynamicViewModel.dynamicVideoList.isEmpty()) return@derivedStateOf false
-            
-            val lastVisibleIndex = visibleItems.last().index
-            // 当最后一个可见项距离列表末尾8个位置时开始加载
-            lastVisibleIndex >= dynamicViewModel.dynamicVideoList.size - 8
+            if (visibleItems.isEmpty() || dynamicViewModel.dynamicVideoList.isEmpty()) {
+                false
+            } else {
+                val lastVisibleIndex = visibleItems.last().index
+                // 当最后一个可见项距离列表末尾8个位置时开始加载
+                lastVisibleIndex >= dynamicViewModel.dynamicVideoList.size - 8
+            }
         }
-    }
+    }.value
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         VideoInfoActivity.actionStart(
@@ -150,8 +152,8 @@ fun DynamicsScreen(
                             )
                         },
                         onClick = { onClickVideo(item) },
-                        onLongClick = { onLongClickVideo(item) }
-                        // 移除onFocus回调，让系统管理焦点
+                        onLongClick = { onLongClickVideo(item) },
+                        onFocus = {} // 空实现，兼容旧代码
                     )
                 }
 
