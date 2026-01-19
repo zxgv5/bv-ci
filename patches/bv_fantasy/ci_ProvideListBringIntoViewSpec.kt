@@ -10,18 +10,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
 /**
- * Provides a [BringIntoViewSpec] that calculates the scroll offset for a child item in a LazyList
- * with intelligent positioning logic.
- *
- * The positioning logic:
- * 1. If the focused element is fully visible, don't scroll
- * 2. If the focused element is in the upper, align its top edge with container top
- * 3. If the focused element is in the lower, align its bottom edge with container bottom
- *
- * @param padding 容器上下左右预留的内边距。单位是dp
- *     注意：延迟列表默认只组合可见项，必须留边距露出一点点下一行用来确保将要获得焦点的项已被组合，否则下移的时候焦点会选中下一行的第一个，上移的时候焦点会选中上一行的最后一个（焦点乱跳的问题）
- *     另外，本应用列表用的视频卡片组件有发光效果，不留边距会没显示不全。
- * @param content 包含在 LazyList 中的内容
+ * 修复焦点跳转问题的 BringIntoViewSpec
+ * 将焦点项定位在屏幕上方30%处
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -35,12 +25,25 @@ fun ProvideListBringIntoViewSpec(
             offset: Float,
             size: Float,
             containerSize: Float
-        ): Float = calculateScrollDistanceMod(
-            offset = offset,
-            size = size,
-            containerSize = containerSize,
-            padding = paddingPx
-        )
+        ): Float {
+            // 简化算法：将焦点项定位在屏幕上方30%处
+            val targetPosition = containerSize * 0.3f
+            
+            // 计算项的可见范围
+            val itemTop = offset
+            val itemBottom = offset + size
+            
+            // 如果项已经可见，不需要滚动
+            val visibleTop = paddingPx
+            val visibleBottom = containerSize - paddingPx
+            
+            if (itemTop >= visibleTop && itemBottom <= visibleBottom) {
+                return 0f
+            }
+            
+            // 计算滚动距离，使项的上边缘对齐目标位置
+            return offset - targetPosition
+        }
     }
     CompositionLocalProvider(
         LocalBringIntoViewSpec provides bringIntoViewSpec,

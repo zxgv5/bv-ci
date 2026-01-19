@@ -81,7 +81,7 @@ class DynamicViewModel(
             isAllRequesting = false
         }
     }
-
+    // 在 DynamicViewModel.kt 中，确保加载状态正确重置
     private suspend fun loadVideoData() {
         loadingVideo = true
         val nextPage = currentVideoPage + 1
@@ -95,8 +95,8 @@ class DynamicViewModel(
                 preferApiType = Prefs.apiType
             )
             
-            // 在主线程更新UI和状态
-            withContext(Dispatchers.Main) {
+            // 确保在主线程更新
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 dynamicVideoList.addAll(dynamicVideoData.videos)
                 videoHistoryOffset = dynamicVideoData.historyOffset
                 videoUpdateBaseline = dynamicVideoData.updateBaseline
@@ -105,15 +105,13 @@ class DynamicViewModel(
                 loadingVideo = false
             }
             
-            logger.fInfo { "Load dynamic video list page: ${nextPage}, size: ${dynamicVideoData.videos.size}" }
-            
         } catch (e: Exception) {
             logger.fWarn { "Load dynamic video list failed: ${e.stackTraceToString()}" }
             
-            withContext(Dispatchers.Main) {
+            // 确保在错误时也重置loading状态
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 loadingVideo = false
-            }
-            
+            }            
             when (e) {
                 is AuthFailureException -> {
                     withContext(Dispatchers.Main) {

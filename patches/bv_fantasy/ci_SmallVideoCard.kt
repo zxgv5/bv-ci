@@ -1,7 +1,6 @@
 package dev.aaa1115910.bv.tv.component.videocard
 
 import android.content.res.Configuration
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -55,11 +54,11 @@ fun SmallVideoCard(
     data: VideoCardData,
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
-    onFocus: () -> Unit = {}, // 重新添加onFocus参数以兼容其他文件
-    initialFocus: Boolean = false,
+    onFocus: () -> Unit = {}, // 保持参数以兼容旧代码
+    // 移除了initialFocus参数，因为可能导致问题
     showScaleAnimation: Boolean = true
 ) {
-    var hasFocus by remember { mutableStateOf(initialFocus) }
+    var hasFocus by remember { mutableStateOf(false) }
 
     Surface(
         modifier = modifier

@@ -115,7 +115,9 @@ fun DynamicsScreen(
         val padding = dimensionResource(R.dimen.grid_padding)
         val spacedBy = dimensionResource(R.dimen.grid_spacedBy)
         
-        ProvideListBringIntoViewSpec {
+        ProvideListBringIntoViewSpec(
+            padding = 24.dp  // 明确指定padding
+        ) {
             LazyVerticalGrid(
                 modifier = modifier
                     .fillMaxSize()
@@ -128,9 +130,9 @@ fun DynamicsScreen(
                     },
                 columns = GridCells.Fixed(4),
                 state = lazyGridState,
-                contentPadding = PaddingValues(padding),
-                verticalArrangement = Arrangement.spacedBy(spacedBy),
-                horizontalArrangement = Arrangement.spacedBy(spacedBy)
+                contentPadding = PaddingValues(24.dp), // 增加内边距
+                verticalArrangement = Arrangement.spacedBy(24.dp), // 增加间距
+                horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 itemsIndexed(
                     items = dynamicViewModel.dynamicVideoList,
