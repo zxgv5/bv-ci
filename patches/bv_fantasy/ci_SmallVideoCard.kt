@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.sp
 import androidx.tv.material3.ClickableSurfaceDefaults
 import androidx.tv.material3.Icon
 import androidx.tv.material3.MaterialTheme
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.material3.Card
 import androidx.tv.material3.Surface
 import androidx.tv.material3.Text
 import coil.compose.AsyncImage
@@ -54,29 +56,24 @@ fun SmallVideoCard(
     data: VideoCardData,
     onClick: () -> Unit = {},
     onLongClick: () -> Unit = {},
-    onFocus: () -> Unit = {}, // 保持参数以兼容旧代码
-    // 移除了initialFocus参数，因为可能导致问题
-    showScaleAnimation: Boolean = true
+    onFocus: () -> Unit = {},
+    initialFocus: Boolean = false
 ) {
-    var hasFocus by remember { mutableStateOf(false) }
+    val view = LocalView.current
+    var hasFocus by remember { mutableStateOf(initialFocus) }
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .onFocusChanged { focusState ->
-                val newFocus = focusState.isFocused
-                if (newFocus != hasFocus) {
-                    hasFocus = newFocus
-                    if (newFocus) {
-                        onFocus()
-                    }
-                }
+            .onFocusChanged {
+                hasFocus = it.isFocused
+                if (hasFocus) onFocus()
             }
             .ifElse(
                 hasFocus,
                 Modifier.border(
                     width = 2.dp,
-                    color = MaterialTheme.colorScheme.primary,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
                     shape = MaterialTheme.shapes.medium
                 )
             ),
@@ -84,17 +81,14 @@ fun SmallVideoCard(
         onLongClick = onLongClick,
         colors = ClickableSurfaceDefaults.colors(
             containerColor = Color.Transparent,
-            focusedContainerColor = if (hasFocus) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f) else Color.Transparent,
-            pressedContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.1f)
+            focusedContainerColor = if (hasFocus) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f) else Color.Transparent,
+            pressedContainerColor = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.2f)
         ),
         shape = ClickableSurfaceDefaults.shape(shape = MaterialTheme.shapes.medium),
-        scale = ClickableSurfaceDefaults.scale(
-            scale = if (showScaleAnimation) 0.95f else 1f,
-            focusedScale = if (showScaleAnimation) 1.05f else 1f
-        )
+        scale = ClickableSurfaceDefaults.scale(scale = 1f, focusedScale = 1f)
     ) {
         Column(
-            modifier = Modifier
+            modifier = modifier
                 .fillMaxWidth()
                 .padding(top = 3.dp, start = 3.dp, end = 3.dp),
         ) {
@@ -307,7 +301,7 @@ fun SmallVideoCardWithoutFocusPreview() {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
                 data = data,
-                showScaleAnimation = false
+                initialFocus = false
             )
         }
     }
@@ -333,7 +327,8 @@ fun SmallVideoCardWithFocusPreview() {
         ) {
             SmallVideoCard(
                 modifier = Modifier.padding(20.dp),
-                data = data
+                data = data,
+                initialFocus = true
             )
         }
     }
