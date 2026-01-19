@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,11 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,6 +47,7 @@ import dev.aaa1115910.bv.tv.component.UpIcon
 import dev.aaa1115910.bv.ui.theme.BVTheme
 import dev.aaa1115910.bv.util.ImageSize
 import dev.aaa1115910.bv.util.resizedImageUrl
+import dev.aaa1115910.bv.util.ifElse
 
 @Composable
 fun SmallVideoCard(
@@ -62,12 +60,7 @@ fun SmallVideoCard(
     showScaleAnimation: Boolean = true
 ) {
     var hasFocus by remember { mutableStateOf(initialFocus) }
-    val scale by animateFloatAsState(
-        targetValue = if (hasFocus && showScaleAnimation) 1.05f else 1f,
-        label = "small video card scale"
-    )
 
-    // 当焦点状态变化时调用onFocus回调
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -80,23 +73,14 @@ fun SmallVideoCard(
                     }
                 }
             }
-            .graphicsLayer {
-                if (showScaleAnimation) {
-                    scaleX = scale
-                    scaleY = scale
-                }
-            }
-            .drawWithContent {
-                if (hasFocus) {
-                    // 绘制焦点边框
-                    drawRect(
-                        color = MaterialTheme.colorScheme.primary,
-                        size = size,
-                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f)
-                    )
-                }
-                drawContent()
-            },
+            .ifElse(
+                hasFocus,
+                Modifier.border(
+                    width = 2.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = MaterialTheme.shapes.medium
+                )
+            ),
         onClick = onClick,
         onLongClick = onLongClick,
         colors = ClickableSurfaceDefaults.colors(
