@@ -104,6 +104,8 @@ ci_source_patch \
 # logger.fError              9
 # logger.exception           0
 # logger.fException          9
+# logger.debug               8
+# logger.fDebug              1
 
 echo "注释logger相关代码..."
 find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
@@ -153,6 +155,12 @@ find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
                 should_comment = 1
             }
             if (line ~ /logger\.error/) {
+                should_comment = 1
+            }
+            if (line ~ /logger\.fDebug/) {
+                should_comment = 1
+            }
+            if (line ~ /logger\.debug/) {
                 should_comment = 1
             }
             if (line ~ /logger\.fException/) {
