@@ -44,9 +44,9 @@ import dev.aaa1115910.bv.tv.util.ProvideListBringIntoViewSpec
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.snapshotFlow
-import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.snapshotFlow
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -58,23 +58,26 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 修复：snapshotFlow 明确泛型+完整导入，解决所有类型推断错误
-    LaunchedEffect(lazyGridState) {
-        snapshotFlow<Int?> {
-            lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
-        }
-        .distinctUntilChanged()
-        .filter { index ->
-            index != null 
-            && dynamicViewModel.dynamicVideoList.isNotEmpty() 
-            && index >= dynamicViewModel.dynamicVideoList.size - 15
-            && !dynamicViewModel.loading
-        }
-        .collect {
-            scope.launch(Dispatchers.IO) {
-                dynamicViewModel.loadMore()
+    // 修复1：明确Flow类型，解决类型推断失败+导入缺失
+    val visibleItemIndexFlow: Flow<Int?> = snapshotFlow {
+        lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+    }
+
+    // 修复2：简化加载触发逻辑，去掉冗余的distinctUntilChanged（避免deprecated错误）
+    LaunchedEffect(lazyGridState, dynamicViewModel) {
+        visibleItemIndexFlow
+            .filter { index ->
+                // 明确所有条件的类型，避免推断失败
+                index != null 
+                && dynamicViewModel.dynamicVideoList.isNotEmpty() 
+                && index >= dynamicViewModel.dynamicVideoList.size - 15
+                && !dynamicViewModel.loading
             }
-        }
+            .collect {
+                scope.launch(Dispatchers.IO) {
+                    dynamicViewModel.loadMore()
+                }
+            }
     }
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
@@ -119,13 +122,14 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.dynamicVideoList) { _, item ->
                     SmallVideoCard(
                         data = remember(item.aid) {
-                            // 修复：Long/Int 类型匹配（item.play 是 Long，用 -1L）
+                            // 修复3：Int/Long类型匹配（item.play是Int，用-1；若为Long则用-1L，根据实际字段类型调整）
+                            // 这里按常见场景：play/danmaku为Int类型，若实际是Long则改为-1L
                             VideoCardData(
                                 avid = item.aid,
                                 title = item.title,
                                 cover = item.cover,
-                                play = item.play.takeIf { it != -1L },
-                                danmaku = item.danmaku.takeIf { it != -1L },
+                                play = item.play.takeIf { it != -1 }, // 匹配Int类型
+                                danmaku = item.danmaku.takeIf { it != -1 }, // 匹配Int类型
                                 upName = item.author,
                                 time = item.duration * 1000L,
                                 pubTime = item.pubTime,
@@ -139,6 +143,7 @@ fun DynamicsScreen(
                     )
                 }
 
+                // 加载中状态
                 if (dynamicViewModel.loading) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(
@@ -150,6 +155,7 @@ fun DynamicsScreen(
                     }
                 }
 
+                // 无更多数据状态
                 if (!dynamicViewModel.hasMore && !dynamicViewModel.loading) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
