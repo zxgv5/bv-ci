@@ -56,16 +56,14 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 终极方案：不用任何Flow/冷门API，用延迟循环检查（稳定无依赖）
+    // 循环检查预加载（无冷门API，稳定兼容）
     LaunchedEffect(lazyGridState, dynamicViewModel) {
         while (true) {
-            delay(300L) // 每300ms检查一次，平衡性能和响应速度
+            delay(300L)
             val listSize = dynamicViewModel.dynamicVideoList.size
             if (listSize == 0 || dynamicViewModel.loading || !dynamicViewModel.hasMore) continue
 
-            // 获取可见区域最后一个item索引（纯原生API，无依赖）
             val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            // 提前15项预加载
             if (lastVisibleIndex >= listSize - 15) {
                 scope.launch(Dispatchers.IO) {
                     dynamicViewModel.loadMore()
@@ -116,9 +114,9 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.dynamicVideoList) { _, item ->
                     SmallVideoCard(
                         data = remember(item.aid) {
-                            // 强制类型匹配：按报错明确 item.play 是 Long，用 -1L（终极解决类型冲突）
-                            val playValue = if (item.play != -1L) item.play else null
-                            val danmakuValue = if (item.danmaku != -1L) item.danmaku else null
+                            // 最后一处修改：item.play 是 Int 类型，用 -1 匹配（解决最后一个类型错误）
+                            val playValue = if (item.play != -1) item.play else null
+                            val danmakuValue = if (item.danmaku != -1) item.danmaku else null
                             
                             VideoCardData(
                                 avid = item.aid,
