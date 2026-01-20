@@ -43,6 +43,7 @@ import dev.aaa1115910.bv.tv.component.videocard.SmallVideoCard
 import dev.aaa1115910.bv.tv.util.ProvideListBringIntoViewSpec
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
 
@@ -55,27 +56,17 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 彻底弃用 snapshotFlow！改用 LazyGridState 原生状态监听，无依赖冲突
-    LaunchedEffect(lazyGridState, dynamicViewModel.dynamicVideoList.size, dynamicViewModel.loading) {
-        // 监听列表滚动，计算当前可见区域最后一个item索引
-        val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-        val listSize = dynamicViewModel.dynamicVideoList.size
-
-        // 提前15项预加载（条件完全明确，无类型推断）
-        if (listSize > 0 && lastVisibleIndex >= listSize - 15 && !dynamicViewModel.loading) {
-            scope.launch(Dispatchers.IO) {
-                dynamicViewModel.loadMore()
-            }
-        }
-    }
-
-    // 额外添加滚动回调监听（双重保障，避免LaunchedEffect触发不及时）
-    LaunchedEffect(lazyGridState) {
-        lazyGridState.scrollPositionSnapshotFlow().collect { _ ->
-            val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+    // 终极方案：不用任何Flow/冷门API，用延迟循环检查（稳定无依赖）
+    LaunchedEffect(lazyGridState, dynamicViewModel) {
+        while (true) {
+            delay(300L) // 每300ms检查一次，平衡性能和响应速度
             val listSize = dynamicViewModel.dynamicVideoList.size
+            if (listSize == 0 || dynamicViewModel.loading || !dynamicViewModel.hasMore) continue
 
-            if (listSize > 0 && lastVisibleIndex >= listSize - 15 && !dynamicViewModel.loading) {
+            // 获取可见区域最后一个item索引（纯原生API，无依赖）
+            val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            // 提前15项预加载
+            if (lastVisibleIndex >= listSize - 15) {
                 scope.launch(Dispatchers.IO) {
                     dynamicViewModel.loadMore()
                 }
@@ -125,13 +116,16 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.dynamicVideoList) { _, item ->
                     SmallVideoCard(
                         data = remember(item.aid) {
-                            // 彻底解决 Int/Long 类型不匹配：按报错确认 item.play 是 Int，用 -1
+                            // 强制类型匹配：按报错明确 item.play 是 Long，用 -1L（终极解决类型冲突）
+                            val playValue = if (item.play != -1L) item.play else null
+                            val danmakuValue = if (item.danmaku != -1L) item.danmaku else null
+                            
                             VideoCardData(
                                 avid = item.aid,
                                 title = item.title,
                                 cover = item.cover,
-                                play = item.play.takeIf { it != -1 }, // 匹配 Int 类型
-                                danmaku = item.danmaku.takeIf { it != -1 }, // 匹配 Int 类型
+                                play = playValue,
+                                danmaku = danmakuValue,
                                 upName = item.author,
                                 time = item.duration * 1000L,
                                 pubTime = item.pubTime,
