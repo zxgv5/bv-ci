@@ -93,6 +93,7 @@ ci_source_patch \
 # import io.github.oshai.kotlinlogging.KotlinLogging
 # import dev.aaa1115910.bv.util.fInfo
 # KotlinLogging.logger {}
+# logger("BvVideoPlayer")
 # androidLogger
 # logger.info              147
 # logger.fInfo             219
@@ -102,6 +103,7 @@ ci_source_patch \
 # logger.fError              9
 # logger.exception           0
 # logger.fException          9
+
 echo "注释logger相关代码..."
 find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
     # 检查文件是否存在
@@ -126,6 +128,9 @@ find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
                 should_comment = 1
             }
             if (line ~ /KotlinLogging\.logger[[:space:]]*\{/) {
+                should_comment = 1
+            }
+            if (line ~ /logger\("BvVideoPlayer"\)/) {
                 should_comment = 1
             }
             if (line ~ /logger\.fInfo/) {
