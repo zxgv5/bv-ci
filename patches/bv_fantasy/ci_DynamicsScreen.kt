@@ -1,4 +1,5 @@
 package dev.aaa1115910.bv.tv.screens.main.home
+
 import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,14 +57,17 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 循环检查预加载（无冷门API，稳定兼容）
+    // 纯基础API预加载逻辑：延迟循环检查，无任何冷门依赖
     LaunchedEffect(lazyGridState, dynamicViewModel) {
         while (true) {
             delay(300L)
             val listSize = dynamicViewModel.dynamicVideoList.size
+            // 跳过无数据/加载中/无更多的情况
             if (listSize == 0 || dynamicViewModel.loading || !dynamicViewModel.hasMore) continue
-
+            
+            // 获取可见区域最后一个item索引
             val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            // 提前15项触发加载
             if (lastVisibleIndex >= listSize - 15) {
                 scope.launch(Dispatchers.IO) {
                     dynamicViewModel.loadMore()
@@ -72,6 +76,7 @@ fun DynamicsScreen(
         }
     }
 
+    // 视频点击事件
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         VideoInfoActivity.actionStart(
             context = context,
@@ -80,6 +85,7 @@ fun DynamicsScreen(
         )
     }
 
+    // 视频长按事件
     val onLongClickVideo: (DynamicVideo) -> Unit = { dynamic ->
         UpInfoActivity.actionStart(
             context,
@@ -99,6 +105,7 @@ fun DynamicsScreen(
                     .fillMaxSize()
                     .onFocusChanged {}
                     .onPreviewKeyEvent {
+                        // Menu键跳转到关注页面
                         if (it.type == KeyEventType.KeyUp && it.key == Key.Menu) {
                             context.startActivity(Intent(context, FollowActivity::class.java))
                             return@onPreviewKeyEvent true
@@ -114,13 +121,29 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.dynamicVideoList) { _, item ->
                     SmallVideoCard(
                         data = remember(item.aid) {
-                            // 核心修复：先把 Long 转 Int，再判断（兼容类型+可空）
-                            val playInt = item.play.toIntOrNull() // Long -> Int?（转换失败返回null）
-                            val danmakuInt = item.danmaku.toIntOrNull()
-                            // 再用 Int 类型的 -1 比较（和 VideoCardData 参数类型一致）
-                            val playValue = if (playInt != null && playInt != -1) playInt else null
-                            val danmakuValue = if (danmakuInt != null && danmakuInt != -1) danmakuInt else null
+                            // 核心修复：处理Java Long类型到目标类型的转换，无高阶函数
+                            // 1. play字段：转为Long?，匹配VideoCardData的Long?参数
+                            val playValue: Long? = if (item.play != null && item.play != -1L) {
+                                item.play
+                            } else {
+                                null
+                            }
 
+                            // 2. danmaku字段：转为Int?，匹配VideoCardData的Int?参数
+                            val danmakuValue: Int? = if (item.danmaku != null) {
+                                val danmakuLong = item.danmaku
+                                // 安全转换：判断是否在Int范围内，避免溢出
+                                if (danmakuLong >= Int.MIN_VALUE && danmakuLong <= Int.MAX_VALUE) {
+                                    val danmakuInt = danmakuLong.toInt()
+                                    if (danmakuInt != -1) danmakuInt else null
+                                } else {
+                                    null
+                                }
+                            } else {
+                                null
+                            }
+
+                            // 构造卡片数据，类型完全匹配
                             VideoCardData(
                                 avid = item.aid,
                                 title = item.title,
@@ -140,7 +163,7 @@ fun DynamicsScreen(
                     )
                 }
 
-                // 加载中状态
+                // 加载中占位
                 if (dynamicViewModel.loading) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(
@@ -152,7 +175,7 @@ fun DynamicsScreen(
                     }
                 }
 
-                // 无更多数据状态
+                // 无更多数据提示
                 if (!dynamicViewModel.hasMore && !dynamicViewModel.loading) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
@@ -167,6 +190,7 @@ fun DynamicsScreen(
             }
         }
     } else {
+        // 未登录提示
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.Center
