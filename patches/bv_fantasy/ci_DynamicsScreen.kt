@@ -44,13 +44,7 @@ import dev.aaa1115910.bv.tv.util.ProvideListBringIntoViewSpec
 import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.snapshotFlow
 import org.koin.androidx.compose.koinViewModel
-
-// 强制导入所有必要依赖（解决 snapshotFlow 找不到问题）
-import kotlinx.coroutines.flow.snapshotFlow as snapshotFlowAlias
 
 @Composable
 fun DynamicsScreen(
@@ -61,25 +55,32 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    // 1. 彻底解决 snapshotFlow 引用问题：用别名+明确类型
-    val visibleItemIndexFlow: Flow<Int?> = snapshotFlowAlias {
-        lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index
+    // 彻底弃用 snapshotFlow！改用 LazyGridState 原生状态监听，无依赖冲突
+    LaunchedEffect(lazyGridState, dynamicViewModel.dynamicVideoList.size, dynamicViewModel.loading) {
+        // 监听列表滚动，计算当前可见区域最后一个item索引
+        val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+        val listSize = dynamicViewModel.dynamicVideoList.size
+
+        // 提前15项预加载（条件完全明确，无类型推断）
+        if (listSize > 0 && lastVisibleIndex >= listSize - 15 && !dynamicViewModel.loading) {
+            scope.launch(Dispatchers.IO) {
+                dynamicViewModel.loadMore()
+            }
+        }
     }
 
-    // 2. 加载触发逻辑（无冗余、无废弃API、类型完全明确）
-    LaunchedEffect(lazyGridState, dynamicViewModel) {
-        visibleItemIndexFlow
-            .filter { index ->
-                index != null 
-                && dynamicViewModel.dynamicVideoList.isNotEmpty() 
-                && index >= dynamicViewModel.dynamicVideoList.size - 15
-                && !dynamicViewModel.loading
-            }
-            .collect {
+    // 额外添加滚动回调监听（双重保障，避免LaunchedEffect触发不及时）
+    LaunchedEffect(lazyGridState) {
+        lazyGridState.scrollPositionSnapshotFlow().collect { _ ->
+            val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            val listSize = dynamicViewModel.dynamicVideoList.size
+
+            if (listSize > 0 && lastVisibleIndex >= listSize - 15 && !dynamicViewModel.loading) {
                 scope.launch(Dispatchers.IO) {
                     dynamicViewModel.loadMore()
                 }
             }
+        }
     }
 
     val onClickVideo: (DynamicVideo) -> Unit = { dynamic ->
@@ -124,13 +125,13 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.dynamicVideoList) { _, item ->
                     SmallVideoCard(
                         data = remember(item.aid) {
-                            // 3. 彻底解决 Long/Int 类型不匹配：明确用 -1L（匹配 DynamicVideo 中 play/danmaku 的 Long 类型）
+                            // 彻底解决 Int/Long 类型不匹配：按报错确认 item.play 是 Int，用 -1
                             VideoCardData(
                                 avid = item.aid,
                                 title = item.title,
                                 cover = item.cover,
-                                play = item.play.takeIf { it != -1L }, // 强制 Long 类型匹配
-                                danmaku = item.danmaku.takeIf { it != -1L }, // 强制 Long 类型匹配
+                                play = item.play.takeIf { it != -1 }, // 匹配 Int 类型
+                                danmaku = item.danmaku.takeIf { it != -1 }, // 匹配 Int 类型
                                 upName = item.author,
                                 time = item.duration * 1000L,
                                 pubTime = item.pubTime,
@@ -144,7 +145,7 @@ fun DynamicsScreen(
                     )
                 }
 
-                // 加载中状态（简化布局，无冗余）
+                // 加载中状态
                 if (dynamicViewModel.loading) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Box(
@@ -156,7 +157,7 @@ fun DynamicsScreen(
                     }
                 }
 
-                // 无更多数据状态（样式统一）
+                // 无更多数据状态
                 if (!dynamicViewModel.hasMore && !dynamicViewModel.loading) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
