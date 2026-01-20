@@ -94,6 +94,7 @@ ci_source_patch \
 # import dev.aaa1115910.bv.util.fInfo
 # KotlinLogging.logger {}
 # logger("BvVideoPlayer")
+# logger("BvPlayer")
 # androidLogger
 # logger.info              147
 # logger.fInfo             219
@@ -133,6 +134,10 @@ find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
             if (line ~ /logger\("BvVideoPlayer"\)/) {
                 should_comment = 1
             }
+            if (line ~ /logger\("BvPlayer"\)/) {
+                should_comment = 1
+            }
+            logger("BvPlayer")
             if (line ~ /logger\.fInfo/) {
                 should_comment = 1
             }
