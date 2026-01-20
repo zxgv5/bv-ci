@@ -48,12 +48,14 @@ CI_FILE_UTILS_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${CI_FILE_UTILS_SCRIPT_DIR}/ci_file_utils.sh"
 
 # 5、对MainScreen.kt进行覆盖，配合上面对隐藏左侧边栏中的“搜索”、“UGC”和“PGC”三个页面导航按钮所作修改
+#    同时注释掉其中的logger和finfo
 ci_source_patch \
     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens" \
     "MainScreen.kt" \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+
 # 6、对HomeContent.kt进行覆盖，配合上面对隐藏顶部“追番”和“稍后看”两个导航标签所作修改
-# 同时配合对视频列表的加载优化，辅助解决长按下方向键的焦点漂移问题
+#    同时注释掉其中的logger和finfo
 ci_source_patch \
     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main" \
     "HomeContent.kt" \
@@ -66,7 +68,6 @@ ci_source_patch \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
 # 8、尝试修复“动态”页长按下方向键焦点左移出区问题
-
 ci_source_patch \
     "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
     "DynamicViewModel.kt" \
@@ -82,3 +83,54 @@ ci_source_patch \
     "SmallVideoCard.kt" \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
+# - - - - - - - - - - - - - - - - - -使用 awk 注释kt文件中的所有logger代码 - - - - - - - - - - - - - - - - - -
+# 在${FANTASY_BV_SOURCE_ROOT}目录下搜索所有.kt文件，并注释掉含有logger相关内容的行
+echo "注释logger相关代码..."
+find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
+    # 检查文件是否存在
+    if [[ -f "$kt_file" ]]; then
+        # 创建临时文件
+        tmp_file="${kt_file}.tmp"
+        # 处理每一行，注释掉包含特定内容的行
+        awk '
+        function containsExactWord(line, word) {
+            # 使用正则表达式进行全字匹配（单词边界）
+            # \< 表示单词开始，\> 表示单词结束
+            return match(line, "\\<" word "\\>")
+        }
+        {
+            line = $0
+            should_comment = 0
+            # 检查是否包含logger（全字匹配，严格区分大小写）
+            if (containsExactWord(line, "logger")) {
+                should_comment = 1
+            }
+            # 检查是否包含特定的导入语句（精确匹配，严格区分大小写）
+            if (line ~ /import[[:space:]]+io\.github\.oshai\.kotlinlogging\.KotlinLogging/) {
+                should_comment = 1
+            }
+            if (line ~ /import[[:space:]]+dev\.aaa1115910\.bv\.util\.fInfo/) {
+                should_comment = 1
+            }
+            # 如果应该注释且尚未被注释，则注释它
+            if (should_comment && !match(line, /^[[:space:]]*\/\//)) {
+                # 保留行首的缩进
+                if (match(line, /^[[:space:]]*/)) {
+                    indent = substr(line, RSTART, RLENGTH)
+                    rest = substr(line, RLENGTH + 1)
+                    print indent "//" rest
+                    next
+                }
+            }
+            print line
+        }' "$kt_file" > "$tmp_file"
+        # 如果文件有变化，替换原文件
+        if ! cmp -s "$kt_file" "$tmp_file"; then
+            mv "$tmp_file" "$kt_file"
+            echo "已处理文件: $kt_file"
+        else
+            rm "$tmp_file"
+        fi
+    fi
+done
+echo "logger相关代码注释完成！"

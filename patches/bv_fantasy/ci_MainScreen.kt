@@ -56,10 +56,10 @@ import dev.aaa1115910.bv.tv.screens.main.drawerItemFocusRequesters
 //import dev.aaa1115910.bv.tv.screens.search.SearchInputScreen
 import dev.aaa1115910.bv.util.Prefs
 import dev.aaa1115910.bv.util.fException
-import dev.aaa1115910.bv.util.fInfo
+//import dev.aaa1115910.bv.util.fInfo
 import dev.aaa1115910.bv.util.toast
 import dev.aaa1115910.bv.viewmodel.UserViewModel
-import io.github.oshai.kotlinlogging.KotlinLogging
+//import io.github.oshai.kotlinlogging.KotlinLogging
 import org.koin.androidx.compose.koinViewModel
 
 @Composable
@@ -68,7 +68,7 @@ fun MainScreen(
     userViewModel: UserViewModel = koinViewModel()
 ) {
     val context = LocalContext.current
-    val logger = KotlinLogging.logger("MainScreen")
+    //val logger = KotlinLogging.logger("MainScreen")
     val scope = rememberCoroutineScope()
     var showUserPanel by remember { mutableStateOf(false) }
     var lastPressBack: Long by remember { mutableLongStateOf(0L) }
@@ -83,7 +83,7 @@ fun MainScreen(
     val handleBack = {
         val currentTime = System.currentTimeMillis()
         if (currentTime - lastPressBack < 1500) {
-            logger.fInfo { "Exiting bug video" }
+            //logger.fInfo { "Exiting bug video" }
             currentSelectedTabs[DrawerItem.Home] = Prefs.defaultHomeTab
             (context as Activity).finish()
         } else {
@@ -118,7 +118,7 @@ fun MainScreen(
         runCatching {
             mainFocusRequester.requestFocus()
         }.onFailure {
-            logger.fException(it) { "request default focus requester failed" }
+            //logger.fException(it) { "request default focus requester failed" }
         }
     }
 
