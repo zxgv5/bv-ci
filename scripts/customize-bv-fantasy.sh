@@ -67,6 +67,11 @@ ci_source_patch \
     "PictureMenu.kt" \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
+ci_source_patch \
+    "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/settings/content" \
+    "PlayerSetting.kt" \
+    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+
 # 8、尝试修复“动态”页长按下方向键焦点左移出区问题
 ci_source_patch \
     "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
