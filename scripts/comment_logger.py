@@ -9,31 +9,53 @@ import os
 import re
 import sys
 
-def find_expression_end(lines, start_line_idx, start_col_idx):
+def is_lambda_expression(lines, start_line_idx, start_col_idx):
+    """
+    判断logger调用是否是lambda表达式形式（logger.info { ... }）
+    """
+    line = lines[start_line_idx]
+    
+    # 从logger方法名之后开始查找
+    for method in ['info', 'fInfo', 'warn', 'fWarn', 'error', 
+                   'fError', 'exception', 'fException', 'debug', 'fDebug']:
+        pattern = fr'logger\.{method}\b'
+        match = re.search(pattern, line[start_col_idx:])
+        if match:
+            # 获取logger.method之后的内容
+            after_method = line[start_col_idx + match.end():].strip()
+            
+            # 检查是否有大括号（lambda表达式）
+            # 先跳过可能的小括号（参数）
+            index = 0
+            paren_count = 0
+            while index < len(after_method):
+                char = after_method[index]
+                if char == '(':
+                    paren_count += 1
+                elif char == ')':
+                    paren_count -= 1
+                elif char == '{' and paren_count == 0:
+                    return True
+                elif not char.isspace() and paren_count == 0:
+                    # 遇到非空格且不是大括号，说明不是lambda表达式
+                    return False
+                index += 1
+            
+            # 如果当前行没有大括号，检查下一行
+            if start_line_idx + 1 < len(lines):
+                next_line = lines[start_line_idx + 1].strip()
+                if next_line.startswith('{'):
+                    return True
+    
+    return False
+
+def find_expression_end(lines, start_line_idx, start_col_idx, is_lambda):
     """
     找到logger表达式结束的位置
     返回结束行索引和结束列索引
     """
     line_idx = start_line_idx
     col_idx = start_col_idx
-    line = lines[line_idx]
-    
-    # 找到logger方法调用的位置
-    logger_methods = ['info', 'fInfo', 'warn', 'fWarn', 'error', 
-                     'fError', 'exception', 'fException', 'debug', 'fDebug']
-    
-    # 检查当前位置是否在logger方法调用上
-    for method in logger_methods:
-        pattern = fr'logger\.{method}\b'
-        match = re.search(pattern, line[col_idx:])
-        if match:
-            # 从匹配位置开始
-            col_idx = col_idx + match.start()
-            break
-    
-    # 向前查找非空白字符，确保我们不在字符串或注释中
-    while col_idx < len(line) and line[col_idx].isspace():
-        col_idx += 1
     
     # 从当前位置开始，查找整个表达式的结束
     # 记录括号和大括号的嵌套
@@ -42,6 +64,19 @@ def find_expression_end(lines, start_line_idx, start_col_idx):
     in_string = False
     string_char = None
     escape = False
+    
+    # 找到logger方法调用的位置
+    logger_methods = ['info', 'fInfo', 'warn', 'fWarn', 'error', 
+                     'fError', 'exception', 'fException', 'debug', 'fDebug']
+    
+    # 检查当前位置是否在logger方法调用上
+    for method in logger_methods:
+        pattern = fr'logger\.{method}\b'
+        match = re.search(pattern, lines[line_idx][col_idx:])
+        if match:
+            # 从匹配位置开始
+            col_idx = col_idx + match.start()
+            break
     
     # 从当前行当前位置开始
     for i in range(line_idx, len(lines)):
@@ -64,14 +99,19 @@ def find_expression_end(lines, start_line_idx, start_col_idx):
                     paren_count += 1
                 elif char == ')':
                     paren_count -= 1
+                    # 当是lambda表达式且括号计数归零时，表达式可能结束
+                    if not is_lambda and paren_count == 0 and brace_count == 0:
+                        return i, j
                 elif char == '{':
                     brace_count += 1
+                    # 对于lambda表达式，从第一个大括号开始计数
+                    if is_lambda and brace_count == 1:
+                        # 重置括号计数，因为lambda表达式可能有自己的括号
+                        paren_count = 0
                 elif char == '}':
                     brace_count -= 1
-                    # 当大括号计数归零且括号计数也归零时，表达式结束
-                    if brace_count == 0 and paren_count == 0:
-                        # 确保这不是一个空的大括号对
-                        # 检查当前位置之后是否有内容
+                    # 当大括号计数归零时，表达式结束
+                    if brace_count == 0 and (not is_lambda or (is_lambda and paren_count == 0)):
                         return i, j
                 elif char in ('"', "'"):
                     in_string = True
@@ -152,13 +192,17 @@ def process_file(filepath):
                     start_line_idx = i
                     start_col_idx = match.start()
                     
+                    # 判断是否是lambda表达式
+                    is_lambda = is_lambda_expression(lines, start_line_idx, start_col_idx)
+                    
                     # 找到表达式的结束位置
-                    end_line_idx, end_col_idx = find_expression_end(lines, start_line_idx, start_col_idx)
+                    end_line_idx, end_col_idx = find_expression_end(
+                        lines, start_line_idx, start_col_idx, is_lambda
+                    )
                     
                     # 检查表达式是否跨越多行
                     if start_line_idx == end_line_idx:
-                        # 单行logger调用，替换为{}
-                        # 获取缩进
+                        # 单行logger调用
                         indent_match = re.match(r'^(\s*)', lines[start_line_idx])
                         indent = indent_match.group(1) if indent_match else ''
                         
@@ -168,16 +212,22 @@ def process_file(filepath):
                         # 获取logger调用后的内容
                         after_logger = lines[start_line_idx][end_col_idx+1:]
                         
-                        # 检查logger调用前是否有语句（如if）
-                        before_trimmed = before_logger.rstrip()
-                        if before_trimmed and not before_trimmed.endswith(';'):
-                            # 有语句在logger调用前，保留它
-                            new_line = before_logger + '{}' + after_logger
+                        if is_lambda:
+                            # 对于lambda表达式，注释掉整行
+                            new_line = indent + '//' + lines[start_line_idx][len(indent):].rstrip('\n') + '\n'
+                            new_lines.append(new_line)
                         else:
-                            # 独立语句，直接替换
-                            new_line = before_logger + '{}' + after_logger
+                            # 对于普通方法调用，替换为{}
+                            # 检查logger调用前是否有语句（如if）
+                            before_trimmed = before_logger.rstrip()
+                            if before_trimmed and not before_trimmed.endswith(';'):
+                                # 有语句在logger调用前，保留它
+                                new_line = before_logger + '{}' + after_logger
+                            else:
+                                # 独立语句，直接替换
+                                new_line = before_logger + '{}' + after_logger
+                            new_lines.append(new_line)
                         
-                        new_lines.append(new_line)
                         i += 1
                     else:
                         # 多行logger调用，注释掉所有相关行
