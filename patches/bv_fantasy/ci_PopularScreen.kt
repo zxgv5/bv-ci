@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridState
@@ -16,9 +17,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.dimensionResource
-import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
+import androidx.tv.material3.Text
 import dev.aaa1115910.biliapi.entity.ugc.UgcItem
 import dev.aaa1115910.bv.tv.component.LoadingTip
 import dev.aaa1115910.bv.entity.carddata.VideoCardData
@@ -88,34 +92,12 @@ fun PopularScreen(
             itemsIndexed(popularViewModel.popularVideoList) { _, item ->
                 SmallVideoCard(
                     data = remember(item.aid) {
-                        // 核心修复：处理Java Long类型到目标类型的转换，无高阶函数
-                        // 1. play字段：转为Long?，匹配VideoCardData的Long?参数
-                        val playValue: Long? = if (item.play != null && item.play != -1L) {
-                            item.play
-                        } else {
-                            null
-                        }
-
-                        // 2. danmaku字段：转为Int?，匹配VideoCardData的Int?参数
-                        val danmakuValue: Int? = if (item.danmaku != null) {
-                            val danmakuLong = item.danmaku
-                            // 安全转换：判断是否在Int范围内，避免溢出
-                            if (danmakuLong >= Int.MIN_VALUE && danmakuLong <= Int.MAX_VALUE) {
-                                val danmakuInt = danmakuLong.toInt()
-                                if (danmakuInt != -1) danmakuInt else null
-                            } else {
-                                null
-                            }
-                        } else {
-                            null
-                        }
-
                         VideoCardData(
                             avid = item.aid,
                             title = item.title,
                             cover = item.cover,
-                            play = playValue,
-                            danmaku = danmakuValue,
+                            play = item.play,
+                            danmaku = item.danmaku,
                             upName = item.author,
                             time = item.duration * 1000L,
                             pubTime = item.pubTime
@@ -139,15 +121,19 @@ fun PopularScreen(
                 }
             }
 
-            // 无更多数据提示
-            if (!popularViewModel.hasMore && !popularViewModel.loading) {
+            // 无更多数据提示 - 需要确认PopularViewModel中是否有hasMore属性
+            // 如果PopularViewModel中没有hasMore属性，请移除这部分代码
+            // 或者根据实际情况判断，例如：!popularViewModel.hasMore && !popularViewModel.loading
+            // 这里假设PopularViewModel有hasMore属性
+            if (!popularViewModel.hasMore && !popularViewModel.loading && popularViewModel.popularVideoList.isNotEmpty()) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        LoadingTip(text = "没有更多了")
-                    }
+                    Text(
+                        modifier = Modifier.fillMaxWidth(),
+                        text = "没有更多了捏",
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }
