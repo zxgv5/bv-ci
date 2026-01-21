@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-×¢ÊÍÈÕÖ¾¹¤¾ß
-ÓÃÓÚ×¢ÊÍµôKotlinÏîÄ¿ÖĞÌØ¶¨µÄÈÕÖ¾Ïà¹Ø´úÂë
+æ³¨é‡Šæ—¥å¿—å·¥å…·
+ç”¨äºæ³¨é‡Šæ‰Kotliné¡¹ç›®ä¸­ç‰¹å®šçš„æ—¥å¿—ç›¸å…³ä»£ç 
 """
 
 import os
@@ -12,42 +12,42 @@ from pathlib import Path
 
 def should_comment_line(line):
     """
-    ÅĞ¶ÏÒ»ĞĞÊÇ·ñÓ¦¸Ã±»×¢ÊÍ
+    åˆ¤æ–­ä¸€è¡Œæ˜¯å¦åº”è¯¥è¢«æ³¨é‡Š
     """
-    # Èç¹ûĞĞÒÑ¾­±»×¢ÊÍ£¬Ôò²»ĞèÒªÔÙ´Î×¢ÊÍ
+    # å¦‚æœè¡Œå·²ç»è¢«æ³¨é‡Šï¼Œåˆ™ä¸éœ€è¦å†æ¬¡æ³¨é‡Š
     if line.strip().startswith('//'):
         return False
     
-    # ¼ì²éÊÇ·ñ°üº¬ĞèÒª×¢ÊÍµÄÌØ¶¨ÄÚÈİ
+    # æ£€æŸ¥æ˜¯å¦åŒ…å«éœ€è¦æ³¨é‡Šçš„ç‰¹å®šå†…å®¹
     patterns = [
-        # µ¼ÈëÓï¾ä
+        # å¯¼å…¥è¯­å¥
         r'import\s+io\.github\.oshai\.kotlinlogging\.KotlinLogging',
         r'import\s+dev\.aaa1115910\.bv\.util\.fInfo',
         
         # KotlinLogging.logger {}
         r'KotlinLogging\.logger\s*\{',
         
-        # loggerº¯Êıµ÷ÓÃ£¨µ¥ĞĞ£©
+        # loggerå‡½æ•°è°ƒç”¨ï¼ˆå•è¡Œï¼‰
         r'logger\s*\(\s*["\']BvVideoPlayer["\']\s*\)',
         
-        # androidLogger£¨È«×ÖÆ¥Åä£©
+        # androidLoggerï¼ˆå…¨å­—åŒ¹é…ï¼‰
         r'\bandroidLogger\b',
     ]
     
-    # loggerµÄ¸÷ÖÖ·½·¨µ÷ÓÃ£¨´¦Àíµ¥ĞĞÇé¿ö£©
+    # loggerçš„å„ç§æ–¹æ³•è°ƒç”¨ï¼ˆå¤„ç†å•è¡Œæƒ…å†µï¼‰
     logger_methods = [
         'info', 'fInfo', 'warn', 'fWarn', 'error', 
         'fError', 'exception', 'fException', 'debug', 'fDebug'
     ]
     
-    # ¼ì²é»ù´¡Ä£Ê½
+    # æ£€æŸ¥åŸºç¡€æ¨¡å¼
     for pattern in patterns:
         if re.search(pattern, line):
             return True
     
-    # ¼ì²élogger·½·¨µ÷ÓÃ
+    # æ£€æŸ¥loggeræ–¹æ³•è°ƒç”¨
     for method in logger_methods:
-        # Æ¥Åä logger.method(...) ĞÎÊ½
+        # åŒ¹é… logger.method(...) å½¢å¼
         pattern = fr'logger\.{method}\s*\('
         if re.search(pattern, line):
             return True
@@ -56,7 +56,7 @@ def should_comment_line(line):
 
 def process_file(filepath):
     """
-    ´¦Àíµ¥¸öÎÄ¼ş
+    å¤„ç†å•ä¸ªæ–‡ä»¶
     """
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -69,18 +69,18 @@ def process_file(filepath):
         while i < len(lines):
             line = lines[i]
             
-            # ¼ì²éµ±Ç°ĞĞÊÇ·ñĞèÒª×¢ÊÍ
+            # æ£€æŸ¥å½“å‰è¡Œæ˜¯å¦éœ€è¦æ³¨é‡Š
             if should_comment_line(line):
-                # ´¦Àí¿ÉÄÜµÄ¶àĞĞº¯Êıµ÷ÓÃ
+                # å¤„ç†å¯èƒ½çš„å¤šè¡Œå‡½æ•°è°ƒç”¨
                 start_index = i
                 end_index = i
                 
-                # ¼ì²éµ±Ç°ĞĞÊÇ·ñ°üº¬º¯Êıµ÷ÓÃµÄ¿ªÊ¼
+                # æ£€æŸ¥å½“å‰è¡Œæ˜¯å¦åŒ…å«å‡½æ•°è°ƒç”¨çš„å¼€å§‹
                 if re.search(r'logger\.\w+\s*\(', line):
-                    # ²éÕÒº¯Êıµ÷ÓÃµÄ½áÊø
+                    # æŸ¥æ‰¾å‡½æ•°è°ƒç”¨çš„ç»“æŸ
                     paren_count = line.count('(') - line.count(')')
                     
-                    # Èç¹ûµ±Ç°ĞĞÃ»ÓĞ½áÊøº¯Êıµ÷ÓÃ£¬¼ÌĞø²éÕÒºóĞøĞĞ
+                    # å¦‚æœå½“å‰è¡Œæ²¡æœ‰ç»“æŸå‡½æ•°è°ƒç”¨ï¼Œç»§ç»­æŸ¥æ‰¾åç»­è¡Œ
                     j = i + 1
                     while j < len(lines) and paren_count > 0:
                         paren_count += lines[j].count('(')
@@ -88,11 +88,11 @@ def process_file(filepath):
                         end_index = j
                         j += 1
                 
-                # ×¢ÊÍ´Óstart_indexµ½end_indexµÄËùÓĞĞĞ
+                # æ³¨é‡Šä»start_indexåˆ°end_indexçš„æ‰€æœ‰è¡Œ
                 for idx in range(start_index, end_index + 1):
                     comment_line = lines[idx]
                     if not comment_line.strip().startswith('//'):
-                        # ±£ÁôËõ½ø
+                        # ä¿ç•™ç¼©è¿›
                         match = re.match(r'^(\s*)', comment_line)
                         if match:
                             indent = match.group(1)
@@ -109,7 +109,7 @@ def process_file(filepath):
                 new_lines.append(line)
                 i += 1
         
-        # Èç¹ûÓĞĞŞ¸Ä£¬Ğ´»ØÎÄ¼ş
+        # å¦‚æœæœ‰ä¿®æ”¹ï¼Œå†™å›æ–‡ä»¶
         if modified:
             with open(filepath, 'w', encoding='utf-8') as f:
                 f.writelines(new_lines)
@@ -118,28 +118,28 @@ def process_file(filepath):
         return False
     
     except Exception as e:
-        print(f"´¦ÀíÎÄ¼ş {filepath} Ê±³ö´í: {e}")
+        print(f"å¤„ç†æ–‡ä»¶ {filepath} æ—¶å‡ºé”™: {e}")
         return False
 
 def main():
     """
-    Ö÷º¯Êı
+    ä¸»å‡½æ•°
     """
     if len(sys.argv) != 2:
-        print("ÓÃ·¨: python comment_logger.py <ÏîÄ¿¸ùÄ¿Â¼>")
-        print("Ê¾Àı: python comment_logger.py /path/to/fantasy-bv-source")
+        print("ç”¨æ³•: python comment_logger.py <é¡¹ç›®æ ¹ç›®å½•>")
+        print("ç¤ºä¾‹: python comment_logger.py /path/to/fantasy-bv-source")
         sys.exit(1)
     
     root_dir = sys.argv[1]
     
     if not os.path.isdir(root_dir):
-        print(f"´íÎó: Ä¿Â¼²»´æÔÚ: {root_dir}")
+        print(f"é”™è¯¯: ç›®å½•ä¸å­˜åœ¨: {root_dir}")
         sys.exit(1)
     
-    print(f"¿ªÊ¼´¦ÀíÄ¿Â¼: {root_dir}")
-    print("ËÑË÷²¢×¢ÊÍÈÕÖ¾Ïà¹Ø´úÂë...")
+    print(f"å¼€å§‹å¤„ç†ç›®å½•: {root_dir}")
+    print("æœç´¢å¹¶æ³¨é‡Šæ—¥å¿—ç›¸å…³ä»£ç ...")
     
-    # ²éÕÒËùÓĞ.ktÎÄ¼ş
+    # æŸ¥æ‰¾æ‰€æœ‰.ktæ–‡ä»¶
     processed_count = 0
     error_count = 0
     
@@ -150,14 +150,14 @@ def main():
                 try:
                     if process_file(filepath):
                         processed_count += 1
-                        print(f"ÒÑ´¦Àí: {filepath}")
+                        print(f"å·²å¤„ç†: {filepath}")
                 except Exception as e:
                     error_count += 1
-                    print(f"´¦ÀíÊ§°Ü: {filepath} - {e}")
+                    print(f"å¤„ç†å¤±è´¥: {filepath} - {e}")
     
-    print(f"\n´¦ÀíÍê³É!")
-    print(f"³É¹¦´¦ÀíÎÄ¼şÊı: {processed_count}")
-    print(f"´¦ÀíÊ§°ÜÎÄ¼şÊı: {error_count}")
+    print(f"\nå¤„ç†å®Œæˆ!")
+    print(f"æˆåŠŸå¤„ç†æ–‡ä»¶æ•°: {processed_count}")
+    print(f"å¤„ç†å¤±è´¥æ–‡ä»¶æ•°: {error_count}")
 
 if __name__ == "__main__":
     main()
