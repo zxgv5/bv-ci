@@ -89,15 +89,15 @@ ci_source_patch \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
 # 9、尝试修复“推荐”页长按下方向键焦点左移出区问题
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
-#     "RecommendViewModel.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+ci_source_patch \
+    "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
+    "RecommendViewModel.kt" \
+    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
-#     "RecommendScreen.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+ci_source_patch \
+    "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
+    "RecommendScreen.kt" \
+    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
 #10、尝试修复“热门”页长按下方向键焦点左移出区问题
 # ci_source_patch \
