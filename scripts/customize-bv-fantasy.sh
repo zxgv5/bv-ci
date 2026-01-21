@@ -88,12 +88,6 @@ ci_source_patch \
     "SmallVideoCard.kt" \
     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
 
-# 9、配置基于文件内容变化检测的增量构建
-ci_source_patch \
-    "${FANTASY_BV_SOURCE_ROOT}" \
-    "gradle.properties" \
-    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
 # - - - - - - - - - - - - - - - - - -使用 awk 注释kt文件中的所有logger代码 - - - - - - - - - - - - - - - - - -
 # 在${FANTASY_BV_SOURCE_ROOT}目录下搜索所有.kt文件，并注释掉含有logger相关内容的行
 # 其中app/shared/src/main/kotlin/dev/aaa1115910/bv/repository/UserRepository.kt需要特殊处理，里面有跨行的logger.info{}表达式
@@ -115,100 +109,11 @@ ci_source_patch \
 # logger.debug               8
 # logger.fDebug              1
 
-echo "注释logger相关代码..."
-find "${FANTASY_BV_SOURCE_ROOT}" -name "*.kt" -type f | while read kt_file; do
-    # 检查文件是否存在
-    if [[ -f "$kt_file" ]]; then
-        # 创建临时文件
-        tmp_file="${kt_file}.tmp"
-        # 处理每一行，注释掉包含特定内容的行
-        awk '
-        function containsExactWord(line, word) {
-            # 使用正则表达式进行全字匹配（单词边界）
-            # \< 表示单词开始，\> 表示单词结束
-            return match(line, "\\<" word "\\>")
-        }
-        {
-            line = $0
-            should_comment = 0
-            # 检查是否包含特定内容（部分匹配，大小写敏感）
-            if (line ~ /import[[:space:]]+io\.github\.oshai\.kotlinlogging\.KotlinLogging/) {
-                should_comment = 1
-            }
-            if (line ~ /import[[:space:]]+dev\.aaa1115910\.bv\.util\.fInfo/) {
-                should_comment = 1
-            }
-            # if (line ~ /KotlinLogging\.logger[[:space:]]*\{/) {
-            #     should_comment = 1
-            # }
-            if (line ~ /KotlinLogging\.logger/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\("BvVideoPlayer"\)/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\("BvPlayer"\)/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.fInfo/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.info/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.fWarn/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.warn/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.fError/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.error/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.fDebug/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.debug/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.fException/) {
-                should_comment = 1
-            }
-            if (line ~ /logger\.exception/) {
-                should_comment = 1
-            }
-            # 检查是否包含androidLogger（全字匹配，大小写敏感）
-            if (containsExactWord(line, "androidLogger")) {
-                should_comment = 1
-            }
-            # 如果应该注释且尚未被注释，则注释它
-            if (should_comment && !match(line, /^[[:space:]]*\/\//)) {
-                # 保留行首的缩进
-                if (match(line, /^[[:space:]]*/)) {
-                    indent = substr(line, RSTART, RLENGTH)
-                    rest = substr(line, RLENGTH + 1)
-                    print indent "//" rest
-                    next
-                }
-            }
-            print line
-        }' "$kt_file" > "$tmp_file"
-        # 如果文件有变化，替换原文件
-        if ! cmp -s "$kt_file" "$tmp_file"; then
-            mv "$tmp_file" "$kt_file"
-            echo "已处理文件: $kt_file"
-        else
-            rm "$tmp_file"
-        fi
-    fi
-done
-echo "logger相关代码注释完成！"
+# - - - - - - - - - - - - - - - - - -注释logger相关代码 - - - - - - - - - - - - - - - - - -
+# 使用python在${FANTASY_BV_SOURCE_ROOT}目录下搜索所有.kt文件，并注释掉含有特定内容的行
+echo "注释全部日志记录代码..."
 
-# - - - - - - - - - - - - - - - - - -单独处理logger替换中给的特殊文件 - - - - - - - - - - - - - - - - - -
-ci_source_patch \
-    "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/repository" \
-    "UserRepository.kt" \
-    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
+PYTHON_AND_SHELL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+python3 "${PYTHON_AND_SHELL_SCRIPT_DIR}/comment_logger.py" "${FANTASY_BV_SOURCE_ROOT}"
+
+echo "logger相关代码注释完成！"

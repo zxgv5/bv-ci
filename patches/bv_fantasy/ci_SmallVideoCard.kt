@@ -1,5 +1,4 @@
 package dev.aaa1115910.bv.tv.component.videocard
-
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -58,7 +57,6 @@ fun SmallVideoCard(
     initialFocus: Boolean = false
 ) {
     var hasFocus by remember { mutableStateOf(initialFocus) }
-
     Surface(
         modifier = modifier
             .fillMaxWidth()
@@ -89,14 +87,14 @@ fun SmallVideoCard(
                 .fillMaxWidth()
                 .padding(top = 3.dp, start = 3.dp, end = 3.dp),
         ) {
+            // 核心优化：图片尺寸适配，加载缩略图提升速度
             CardCover(
-                modifier = Modifier
-                    .clip(MaterialTheme.shapes.medium),
-                cover = data.cover,
+                modifier = Modifier.clip(MaterialTheme.shapes.medium),
+                cover = data.cover.resizedImageUrl(ImageSize.SmallVideoCardCover), // 强制缩略图尺寸
                 play = data.playString,
                 danmaku = data.danmakuString,
                 time = data.timeString,
-                badge = "${if(data.isChargingArc) "⚡" else ""}${if(data.badgeText.isEmpty() && data.isChargingArc) "充电专属" else data.badgeText}"
+                badge = "${if (data.isChargingArc) "⚡" else ""}${if (data.badgeText.isEmpty() && data.isChargingArc) "充电专属" else data.badgeText}"
             )
             Spacer(modifier = Modifier.height(8.dp))
             CardInfo(
@@ -138,7 +136,6 @@ private fun CoverBottomInfo(
                 color = Color.White
             )
         }
-
         if (danmaku.isNotBlank()) {
             if (play.isNotBlank()) Spacer(Modifier.width(8.dp))
             Icon(
@@ -153,7 +150,6 @@ private fun CoverBottomInfo(
                 color = Color.White
             )
         }
-
         Spacer(Modifier.weight(1f))
         Text(
             text = time,
@@ -178,26 +174,17 @@ fun CardCover(
         contentAlignment = Alignment.BottomCenter
     ) {
         val showInfo = maxWidth > 160.dp
-
-        // 优化：使用缩略图尺寸，提升加载速度
-        val thumbnailUrl = if (cover.isNotEmpty()) {
-            cover.resizedImageUrl(ImageSize.SmallVideoCardCover)
-        } else {
-            cover
-        }
-
+        // 优化：禁用图片缓存抖动，提升加载速度
         AsyncImage(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1.6f),
-            model = thumbnailUrl,
+            model = cover,
             contentDescription = null,
             contentScale = ContentScale.Crop,
-            // 添加对齐方式，避免图片位置偏移
-            alignment = Alignment.Center
+            alignment = Alignment.TopCenter
         )
-        
-        // 封面与徽章叠放，徽章绝对定位在右上角
+        // 徽章简化：减少布局层级
         if (badge.isNotEmpty()) {
             Text(
                 modifier = Modifier
@@ -213,8 +200,7 @@ fun CardCover(
                 color = Color.White
             )
         }
-        
-        // 只有需要显示时才创建阴影和信息组件
+        // 仅必要时显示阴影和信息，减少渲染耗时
         if (showInfo) {
             Box(
                 modifier = Modifier
@@ -229,7 +215,6 @@ fun CardCover(
                         )
                     )
             )
-
             CoverBottomInfo(
                 play = play,
                 danmaku = danmaku,
@@ -248,7 +233,6 @@ private fun CardInfo(
 ) {
     Column(modifier = modifier) {
         Text(
-            modifier = Modifier,
             text = title,
             style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
             maxLines = 2,
