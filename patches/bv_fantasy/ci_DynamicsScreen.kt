@@ -67,8 +67,8 @@ fun DynamicsScreen(
             
             // 获取可见区域最后一个item索引
             val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            // 提前15项触发加载
-            if (lastVisibleIndex >= listSize - 15) {
+            // 提前24项触发加载
+            if (lastVisibleIndex >= listSize - 24) {
                 scope.launch(Dispatchers.IO) {
                     dynamicViewModel.loadMore()
                 }
