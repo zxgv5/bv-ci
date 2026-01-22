@@ -189,8 +189,6 @@ fun CardCover(
             if (badge.isNotEmpty()) {
                 Text(
                     modifier = Modifier
-                        .padding(5.dp)
-                        .align(Alignment.TopEnd)
                         .background(
                             color = Color.Black.copy(0.3f),
                             shape = MaterialTheme.shapes.extraSmall
