@@ -19,11 +19,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -62,12 +65,24 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var currentFocusedIndex by remember { mutableIntStateOf(-1) }
-    // [修改]：优化加载条件，增加缓冲区域
-    val shouldLoadMore by remember {
-        derivedStateOf { 
-            dynamicViewModel.dynamicVideoList.isNotEmpty() && 
-            !dynamicViewModel.loadingVideo && // [修改]：添加加载状态检查
-            currentFocusedIndex + 15 > dynamicViewModel.dynamicVideoList.size // [修改]：从12改为15
+    // [修改1]：添加滚动位置触发的加载逻辑（借鉴ci版本核心思想）
+    LaunchedEffect(lazyGridState, dynamicViewModel) {
+        while (true) {
+            delay(300L) // 每隔300ms检查一次
+            
+            // 跳过无数据/加载中/无更多的情况
+            if (dynamicViewModel.dynamicVideoList.isEmpty() || 
+                dynamicViewModel.loadingVideo || 
+                !dynamicViewModel.videoHasMore) continue
+            
+            // 获取可见区域最后一个item索引
+            val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
+            // 提前24项触发加载（比ci版本更保守）
+            if (lastVisibleIndex >= dynamicViewModel.dynamicVideoList.size - 24) {
+                scope.launch(Dispatchers.IO) {
+                    dynamicViewModel.loadMoreVideo()
+                }
+            }
         }
     }
     val showTip by remember {
@@ -94,13 +109,8 @@ fun DynamicsScreen(
     //不能直接使用 LaunchedEffect(currentFocusedIndex)，会导致整个页面重组
     LaunchedEffect(shouldLoadMore) {
         if (shouldLoadMore) {
-            // [修改]：添加小延迟，防止快速滚动时频繁触发
-            kotlinx.coroutines.delay(100) // [修改]：添加延迟
-            // [修改]：再次检查条件
-            if (shouldLoadMore) {
-                scope.launch(Dispatchers.IO) {
-                    dynamicViewModel.loadMoreVideo()
-                }
+            scope.launch(Dispatchers.IO) {
+                dynamicViewModel.loadMoreVideo()
             }
         }
     }
