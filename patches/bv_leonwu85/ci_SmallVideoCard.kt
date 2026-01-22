@@ -114,8 +114,8 @@ fun SmallVideoCard(
 private fun CoverBottomInfo(
     modifier: Modifier = Modifier,
     play: String,
-    danmaku: String,
-    time: String
+    danmaku: String
+    //time: String
 ) {
     Row(
         modifier = modifier
