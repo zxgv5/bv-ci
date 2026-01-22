@@ -55,6 +55,7 @@ import dev.aaa1115910.bv.viewmodel.home.DynamicViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.koin.androidx.compose.koinViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun DynamicsScreen(
@@ -65,26 +66,6 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var currentFocusedIndex by remember { mutableIntStateOf(-1) }
-    // [修改1]：添加滚动位置触发的加载逻辑（借鉴ci版本核心思想）
-    LaunchedEffect(lazyGridState, dynamicViewModel) {
-        while (true) {
-            delay(300L) // 每隔300ms检查一次
-            
-            // 跳过无数据/加载中/无更多的情况
-            if (dynamicViewModel.dynamicVideoList.isEmpty() || 
-                dynamicViewModel.loadingVideo || 
-                !dynamicViewModel.videoHasMore) continue
-            
-            // 获取可见区域最后一个item索引
-            val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            // 提前24项触发加载（比ci版本更保守）
-            if (lastVisibleIndex >= dynamicViewModel.dynamicVideoList.size - 24) {
-                scope.launch(Dispatchers.IO) {
-                    dynamicViewModel.loadMoreVideo()
-                }
-            }
-        }
-    }
     val showTip by remember {
         derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex >= 0 }
     }
@@ -104,15 +85,6 @@ fun DynamicsScreen(
             name = dynamic.author,
             face = dynamic.authorFace
         )
-    }
-
-    //不能直接使用 LaunchedEffect(currentFocusedIndex)，会导致整个页面重组
-    LaunchedEffect(shouldLoadMore) {
-        if (shouldLoadMore) {
-            scope.launch(Dispatchers.IO) {
-                dynamicViewModel.loadMoreVideo()
-            }
-        }
     }
 
     if (dynamicViewModel.isLogin) {
