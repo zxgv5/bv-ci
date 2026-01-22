@@ -23,6 +23,20 @@ LEONWU85_BV_R8TEST_STRINGS_XML="$LEONWU85_BV_SOURCE_ROOT/app/shared/src/r8Test/r
 sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string>/<string name="app_name">leonwu85 R8 Test<\/string>/' "$LEONWU85_BV_R8TEST_STRINGS_XML"
 
 # 4、进度栏下方按钮，焦点逻辑顺序更改，首先落到“弹幕”上，方便控制弹幕启停
-# LEONWU85_BV_CONTROLLERVIDEOINFO_KT="$LEONWU85_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
-# 使用捕获组保留原缩进
-# sed -i 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = focusRequesters["danmaku"] ?: FocusRequester()/' "$LEONWU85_BV_CONTROLLERVIDEOINFO_KT"
+LEONWU85_BV_CONTROLLERVIDEOINFO_KT="$LEONWU85_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
+sed -i 's/down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/down = focusRequesters["danmaku"] ?: FocusRequester()/' "$LEONWU85_BV_CONTROLLERVIDEOINFO_KT"
+
+# 5、TV端倍速调整，并调整“设置”中的倍速范围
+# 1. 替换第一个文件
+LEONWU85_BV_PLAYERSETTING_KT="${LEONWU85_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/settings/content/PlayerSetting.kt"
+sed -i \
+  -e 's/minValue = 0.25,/minValue = 0.2,/' \
+  -e 's/maxValue = 2.5,/maxValue = 5.0,/' \
+  -e 's/step = 0.25,/step = 0.2,/' \
+  "$LEONWU85_BV_PLAYERSETTING_KT"
+
+LEONWU85_BV_PICTUREMENU_KT="${LEONWU85_BV_SOURCE_ROOT}/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/playermenu/PictureMenu.kt"
+sed -i \
+  -e 's/step = 0.25f,/step = 0.2f,/' \
+  -e 's/range = 0.25f..3f,/range = 0.2f..5f,/' \
+  "$LEONWU85_BV_PICTUREMENU_KT"
