@@ -66,18 +66,12 @@ fun DynamicsScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     //#-var currentFocusedIndex by remember { mutableIntStateOf(-1) }
-    // 纯基础API预加载逻辑：延迟循环检查，无任何冷门依赖
     LaunchedEffect(lazyGridState, dynamicViewModel) {                                                     //#+
         while (true) {                                                                                    //#+
             delay(1L)                                                                                     //#+
             val listSize = dynamicViewModel.dynamicVideoList.size                                         //#+
-            // 跳过无数据/加载中/无更多的情况                                                             //#+
-            //if (listSize == 0 || dynamicViewModel.loading || !dynamicViewModel.hasMore) continue        //#+
             if (listSize == 0) continue                                                                   //#+
-                                                                                                          //#+
-            // 获取可见区域最后一个item索引                                                               //#+
             val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1    //#+
-            // 提前24项触发加载                                                                           //#+
             if (lastVisibleIndex >= listSize - 24) {                                                      //#+
                 scope.launch(Dispatchers.IO) {                                                            //#+
                     dynamicViewModel.loadMoreVideo()                                                           //#+
@@ -156,17 +150,13 @@ fun DynamicsScreen(
                 itemsIndexed(dynamicViewModel.dynamicVideoList) { index, item ->
                     SmallVideoCard(
                         data = remember(item.aid) {
-                            // 核心修复：处理Java Long类型到目标类型的转换，无高阶函数             //#+
-                            // 1. play字段：转为Long?，匹配VideoCardData的Long?参数                //#+
                             val playValue: Long? = if (item.play != null && item.play != -1L) {    //#+
                                 item.play                                                          //#+
                             } else {                                                               //#+
                                 null                                                               //#+
                             }                                                                      //#+
-                            // 2. danmaku字段：转为Int?，匹配VideoCardData的Int?参数               //#+
                             val danmakuValue: Int? = if (item.danmaku != null) {                   //#+
                                 val danmakuLong = item.danmaku                                     //#+
-                                // 安全转换：判断是否在Int范围内，避免溢出                         //#+
                                 if (danmakuLong >= Int.MIN_VALUE && danmakuLong <= Int.MAX_VALUE) {//#+
                                     val danmakuInt = danmakuLong.toInt()                           //#+
                                     if (danmakuInt != -1) danmakuInt else null                     //#+
@@ -177,15 +167,16 @@ fun DynamicsScreen(
                                 null                                                               //#+
                             }                                                                      //#+
                             
-                            
                             VideoCardData(
                                 avid = item.aid,
                                 title = item.title,
                                 cover = item.cover,
-                                //#-play = item.play,
+                                play = item.play,
+                                danmaku = item.danmaku,
+                                //#-play = item.play, //revert 撤销
                                 //#-danmaku = item.danmaku,
-                                play = playValue, //#+
-                                danmaku = danmakuValue, //#+
+                                //play = playValue, //#+
+                                //danmaku = danmakuValue, //#+
                                 upName = item.author,
                                 time = item.duration * 1000L,
                                 pubTime = item.pubTime,
