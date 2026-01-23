@@ -80,7 +80,7 @@ fun DynamicsScreen(
             // 提前24项触发加载                                                                           //#+
             if (lastVisibleIndex >= listSize - 24) {                                                      //#+
                 scope.launch(Dispatchers.IO) {                                                            //#+
-                    dynamicViewModel.loadMoreVideo()                                                           //#+
+                    dynamicViewModel.loadMore()                                                           //#+
                 }                                                                                         //#+
             }                                                                                             //#+
         }                                                                                                 //#+
@@ -195,7 +195,8 @@ fun DynamicsScreen(
                         },
                         onClick = { onClickVideo(item) },
                         onLongClick = {onLongClickVideo(item) },
-                        onFocus = { currentFocusedIndex = index }
+                        //#-onFocus = { currentFocusedIndex = index }
+                        onFocus = {} //#+
                     )
                 }
 
