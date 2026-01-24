@@ -34,7 +34,8 @@ import dev.aaa1115910.bv.tv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.tv.util.ProvideListBringIntoViewSpec
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import org.koin.androidx.compose.koinViewModel
-import kotlinx.coroutines.delay //#+ s3
+import kotlinx.coroutines.delay //修改位置0
+
 @Composable
 fun HistoryScreen(
     modifier: Modifier = Modifier,
@@ -48,27 +49,33 @@ fun HistoryScreen(
         targetValue = if (showLargeTitle) 48f else 24f,
         label = "title font size"
     )
+    
+    // 修改位置1: 添加LazyGridState参数
+    val lazyGridState = rememberLazyGridState()
+    val scope = rememberCoroutineScope()
 
-    //#- s3 LaunchedEffect(Unit) {
-    //#- s3     if (historyViewModel.histories.isEmpty()) {
-    //#- s3         historyViewModel.clearData()
-    //#- s3         historyViewModel.update()
-    //#- s3     }
-    //#- s3 }
+    LaunchedEffect(Unit) {
+        if (historyViewModel.histories.isEmpty()) {
+            historyViewModel.clearData()
+            historyViewModel.update()
+        }
+    }
+    
+    // 修改位置2: 添加基于滚动位置的加载更多逻辑
     LaunchedEffect(lazyGridState, historyViewModel) {
         while (true) {
             delay(1L)
-            val listSize = historyViewModel.historyVideoList.size
+            val listSize = historyViewModel.histories.size
             if (listSize == 0) continue
             val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
-            if (lastVisibleIndex >= listSize - 24) {
+            if (lastVisibleIndex >= listSize - 24 && !historyViewModel.noMore) {
                 scope.launch(Dispatchers.IO) {
                     historyViewModel.update()
                 }
             }
         }
-    } //#+ s3 
-    
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -114,6 +121,8 @@ fun HistoryScreen(
     ) { innerPadding ->
         ProvideListBringIntoViewSpec(padding = 26.dp) {
             LazyVerticalGrid(
+                // 修改位置3: 添加state参数
+                state = lazyGridState,
                 modifier = Modifier.padding(innerPadding),
                 columns = GridCells.Fixed(4),
                 contentPadding = PaddingValues(24.dp),
@@ -134,14 +143,11 @@ fun HistoryScreen(
                                 )
                             },
                             onLongClick = { UpInfoActivity.actionStart( context, mid = history.upId, name = history.upName, face = history.upFace ) },
-                            onFocus = { currentIndex = index } //#+ s3
-                            //#- s3 onFocus = {
-                            //#- s3     currentIndex = index
-                            //#- s3     //预加载
-                            //#- s3     if (index + 12 > historyViewModel.histories.size) {
-                            //#- s3         historyViewModel.update()
-                            //#- s3     }
-                            //#- s3 }
+                            onFocus = {
+                                currentIndex = index
+                                // 修改位置4: 移除原来的预加载逻辑
+                                // 原来的预加载逻辑已移动到LaunchedEffect中
+                            }
                         )
                     }
                 }
