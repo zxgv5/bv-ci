@@ -34,7 +34,13 @@ import dev.aaa1115910.bv.tv.activities.video.VideoInfoActivity
 import dev.aaa1115910.bv.tv.util.ProvideListBringIntoViewSpec
 import dev.aaa1115910.bv.viewmodel.user.HistoryViewModel
 import org.koin.androidx.compose.koinViewModel
-import kotlinx.coroutines.delay //修改位置0
+// 修改位置1: 添加必要的导入
+import androidx.compose.foundation.lazy.grid.LazyGridState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun HistoryScreen(
@@ -50,18 +56,18 @@ fun HistoryScreen(
         label = "title font size"
     )
     
-    // 修改位置1: 添加LazyGridState参数
+    // 修改位置2: 添加LazyGridState参数，注释原有LaunchedEffect
     val lazyGridState = rememberLazyGridState()
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        if (historyViewModel.histories.isEmpty()) {
-            historyViewModel.clearData()
-            historyViewModel.update()
-        }
-    }
+    //LaunchedEffect(Unit) {
+    //    if (historyViewModel.histories.isEmpty()) {
+    //        historyViewModel.clearData()
+    //        historyViewModel.update()
+    //    }
+    //}
     
-    // 修改位置2: 添加基于滚动位置的加载更多逻辑
+    // 修改位置3: 添加基于滚动位置的加载更多逻辑
     LaunchedEffect(lazyGridState, historyViewModel) {
         while (true) {
             delay(1L)
@@ -121,7 +127,7 @@ fun HistoryScreen(
     ) { innerPadding ->
         ProvideListBringIntoViewSpec(padding = 26.dp) {
             LazyVerticalGrid(
-                // 修改位置3: 添加state参数
+                // 修改位置4: 添加state参数
                 state = lazyGridState,
                 modifier = Modifier.padding(innerPadding),
                 columns = GridCells.Fixed(4),
@@ -145,7 +151,7 @@ fun HistoryScreen(
                             onLongClick = { UpInfoActivity.actionStart( context, mid = history.upId, name = history.upName, face = history.upFace ) },
                             onFocus = {
                                 currentIndex = index
-                                // 修改位置4: 移除原来的预加载逻辑
+                                // 修改位置5: 移除原来的预加载逻辑
                                 // 原来的预加载逻辑已移动到LaunchedEffect中
                             }
                         )
