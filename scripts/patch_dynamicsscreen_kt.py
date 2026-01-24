@@ -161,7 +161,7 @@ def process_kt_file(filename):
                             }
                             val danmakuValue: Int? = if (item.danmaku != null) {
                                 val danmakuLong = item.danmaku
-                                if (danmakuLong >= Int.MIN_VALUE && danmakuLong <= Int.MAX_VALUE)
+                                if (danmakuLong >= Int.MIN_VALUE && danmakuLong <= Int.MAX_VALUE) {
                                     val danmakuInt = danmakuLong.toInt()
                                     if (danmakuInt != -1) danmakuInt else null
                                 } else {

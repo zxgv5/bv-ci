@@ -22,9 +22,15 @@ sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV.*<\/string>/<strin
 LEONWU85_BV_R8TEST_STRINGS_XML="$LEONWU85_BV_SOURCE_ROOT/app/shared/src/r8Test/res/values/strings.xml"
 sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string>/<string name="app_name">leonwu85 R8 Test<\/string>/' "$LEONWU85_BV_R8TEST_STRINGS_XML"
 
-# 4、进度栏下方按钮，焦点逻辑顺序更改，首先落到“弹幕”上，方便控制弹幕启停
+# 4、进度栏下方按钮，焦点逻辑顺序更改，首先落到“弹幕”上，方便控制弹幕启停，同时配合倍速按钮取值调整
+# LEONWU85_BV_CONTROLLERVIDEOINFO_KT="$LEONWU85_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
+# sed -i 's/down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/down = focusRequesters["danmaku"] ?: FocusRequester()/' "$LEONWU85_BV_CONTROLLERVIDEOINFO_KT"
 LEONWU85_BV_CONTROLLERVIDEOINFO_KT="$LEONWU85_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
-sed -i 's/down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/down = focusRequesters["danmaku"] ?: FocusRequester()/' "$LEONWU85_BV_CONTROLLERVIDEOINFO_KT"
+# 使用捕获组保留原缩进
+sed -i -e 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = focusRequesters["danmaku"] ?: FocusRequester()/' \
+       -e 's/^\([[:space:]]*\)step: Float = 0\.25f,/\1step: Float = 0.2f,/' \
+       -e 's/^\([[:space:]]*\)min: Float = 0\.25f,/\1min: Float = 0.2f,/' \
+       -e 's/^\([[:space:]]*\)max: Float = 3f,/\1max: Float = 5f,/' "$LEONWU85_BV_CONTROLLERVIDEOINFO_KT"
 
 # 5、TV端倍速调整，并调整“设置”中的倍速范围
 LEONWU85_BV_PLAYERSETTING_KT="${LEONWU85_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/settings/content/PlayerSetting.kt"
