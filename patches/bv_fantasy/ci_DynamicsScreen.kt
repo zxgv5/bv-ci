@@ -64,13 +64,13 @@ fun DynamicsScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    //#-s3 var currentFocusedIndex by remember { mutableIntStateOf(-1) }
+    var currentFocusedIndex by remember { mutableIntStateOf(-1) }
     //#-s3 val shouldLoadMore by remember {
     //#-s3     derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex + 12 > dynamicViewModel.dynamicVideoList.size }
     //#-s3 }
-    //#-s3 val showTip by remember {
-    //#-s3     derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex >= 0 }
-    //#-s3 }
+    val showTip by remember {
+        derivedStateOf { dynamicViewModel.dynamicVideoList.isNotEmpty() && currentFocusedIndex >= 0 }
+    }
     LaunchedEffect(lazyGridState, dynamicViewModel) {
         while (true) {
             delay(1L)
@@ -113,15 +113,15 @@ fun DynamicsScreen(
     if (dynamicViewModel.isLogin) {
         val padding = dimensionResource(R.dimen.grid_padding)
         val spacedBy = dimensionResource(R.dimen.grid_spacedBy)
-        //#-s3 if (showTip) {
-        //#-s3     Text(
-        //#-s3         modifier = Modifier.fillMaxWidth().offset(x = (-20).dp, y = (-8).dp),
-        //#-s3         text = stringResource(R.string.entry_follow_screen),
-        //#-s3         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-        //#-s3         fontSize = 12.sp,
-        //#-s3         textAlign = TextAlign.End
-        //#-s3     )
-        //#-s3 }
+        if (showTip) {
+            Text(
+                modifier = Modifier.fillMaxWidth().offset(x = (-20).dp, y = (-8).dp),
+                text = stringResource(R.string.entry_follow_screen),
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                fontSize = 12.sp,
+                textAlign = TextAlign.End
+            )
+        }
         ProvideListBringIntoViewSpec {
             LazyVerticalGrid(
                 modifier = modifier
