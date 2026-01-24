@@ -113,15 +113,15 @@ fun DynamicsScreen(
     if (dynamicViewModel.isLogin) {
         val padding = dimensionResource(R.dimen.grid_padding)
         val spacedBy = dimensionResource(R.dimen.grid_spacedBy)
-        if (showTip) {
-            Text(
-                modifier = Modifier.fillMaxWidth().offset(x = (-20).dp, y = (-8).dp),
-                text = stringResource(R.string.entry_follow_screen),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-                fontSize = 12.sp,
-                textAlign = TextAlign.End
-            )
-        }
+        //#-s3 if (showTip) {
+        //#-s3     Text(
+        //#-s3         modifier = Modifier.fillMaxWidth().offset(x = (-20).dp, y = (-8).dp),
+        //#-s3         text = stringResource(R.string.entry_follow_screen),
+        //#-s3         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+        //#-s3         fontSize = 12.sp,
+        //#-s3         textAlign = TextAlign.End
+        //#-s3     )
+        //#-s3 }
         ProvideListBringIntoViewSpec {
             LazyVerticalGrid(
                 modifier = modifier
