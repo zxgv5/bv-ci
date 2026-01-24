@@ -81,7 +81,7 @@ def process_kt_file(filename):
             val lastVisibleIndex = lazyGridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: -1
             if (lastVisibleIndex >= listSize - 24) {
                 scope.launch(Dispatchers.IO) {
-                    popularViewModel.loadMoreVideo()
+                    popularViewModel.loadMore()
                 }
             }
         }
