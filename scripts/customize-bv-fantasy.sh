@@ -92,75 +92,10 @@ python3 "${PYTHON_AND_SHELL_SCRIPT_DIR}/patch_popularscreen_kt.py" "${FANTASY_BV
 FANTASY_BV_RECOMMENDSCREEN_KT="${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home/RecommendScreen.kt"
 python3 "${PYTHON_AND_SHELL_SCRIPT_DIR}/patch_recommendscreen_kt.py" "${FANTASY_BV_RECOMMENDSCREEN_KT}"
 
+FANTASY_BV_HISTORYSCREEN_KT="${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/user/HistoryScreen.kt"
+python3 "${PYTHON_AND_SHELL_SCRIPT_DIR}/patch_historyscreen_kt.py" "${FANTASY_BV_HISTORYSCREEN_KT}"
+
 echo "*Screen.kt代码处理完成..."
-
-# 目前可以确定仅修改*Screen.kt即可解决加载慢和焦点漂移问题
-# 下面进行进一步进一步调试，以便找到最小有效修改
-ci_source_patch \
-    "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/user" \
-    "HistoryScreen.kt" \
-    "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-
-# 8、尝试修复“动态”页长按下方向键焦点左移出区问题
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
-#     "DynamicViewModel.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
-#     "DynamicsScreen.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/component/videocard" \
-#     "SmallVideoCard.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-# 9、尝试修复“推荐”页长按下方向键焦点左移出区问题
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
-#     "RecommendViewModel.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
-#     "RecommendScreen.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-#10、尝试修复“热门”页长按下方向键焦点左移出区问题
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/shared/src/main/kotlin/dev/aaa1115910/bv/viewmodel/home" \
-#     "PopularViewModel.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-# ci_source_patch \
-#     "${FANTASY_BV_SOURCE_ROOT}/app/tv/src/main/kotlin/dev/aaa1115910/bv/tv/screens/main/home" \
-#     "PopularScreen.kt" \
-#     "${GITHUB_WORKSPACE}/ci_source/patches/bv_fantasy"
-
-# - - - - - - - - - - - - - - - - - -使用 awk 注释kt文件中的所有logger代码 - - - - - - - - - - - - - - - - - -
-# 在${FANTASY_BV_SOURCE_ROOT}目录下搜索所有.kt文件，并注释掉含有logger相关内容的行
-# 其中app/shared/src/main/kotlin/dev/aaa1115910/bv/repository/UserRepository.kt需要特殊处理，里面有跨行的logger.info{}表达式
-
-# import io.github.oshai.kotlinlogging.KotlinLogging
-# import dev.aaa1115910.bv.util.fInfo
-# KotlinLogging.logger
-# logger("BvVideoPlayer")
-# logger("BvPlayer")
-# androidLogger
-# logger.info              147
-# logger.fInfo             219
-# logger.warn               24
-# logger.fWarn              16
-# logger.error              10
-# logger.fError              9
-# logger.exception           0
-# logger.fException          9
-# logger.debug               8
-# logger.fDebug              1
-
 # - - - - - - - - - - - - - - - - - -注释logger相关代码 - - - - - - - - - - - - - - - - - -
 # 使用python在${FANTASY_BV_SOURCE_ROOT}目录下搜索所有.kt文件，并注释掉含有特定内容的行
 echo "注释全部日志记录代码..."

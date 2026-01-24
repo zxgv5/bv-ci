@@ -26,3 +26,13 @@ sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV.*<\/string>/<strin
 
 FROST819_BV_R8TEST_STRINGS_XML="$FROST819_BV_SOURCE_ROOT/app/src/r8Test/res/values/strings.xml"
 sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string>/<string name="app_name">f819 R8 Test<\/string>/' "$FROST819_BV_R8TEST_STRINGS_XML"
+
+
+# - - - - - - - - - - - - - - - - - -注释logger相关代码 - - - - - - - - - - - - - - - - - -
+# 使用python在${FANTASY_BV_SOURCE_ROOT}目录下搜索所有.kt文件，并注释掉含有特定内容的行
+echo "注释全部日志记录代码..."
+
+#PYTHON_AND_SHELL_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+python3 "${PYTHON_AND_SHELL_SCRIPT_DIR}/comment_logger.py" "${FANTASY_BV_SOURCE_ROOT}"
+
+echo "logger相关代码注释完成！"

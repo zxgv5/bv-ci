@@ -3,8 +3,25 @@
 """
 注释日志工具
 用于注释掉Kotlin项目中特定的日志相关代码，并将logger方法调用替换为空操作
+对于函数的处理，可以正确识别函数整体，处理多行情况
+主要注释以下内容：
+# import io.github.oshai.kotlinlogging.KotlinLogging
+# import dev.aaa1115910.bv.util.fInfo
+# KotlinLogging.logger
+# logger("BvVideoPlayer")
+# logger("BvPlayer")
+# androidLogger
+# logger.info { xxx }
+# logger.fInfo { xxx }
+# logger.warn { xxx }
+# logger.fWarn { xxx }
+# logger.error { xxx }
+# logger.fError { xxx }
+# logger.exception { xxx }
+# logger.fException { xxx }
+# logger.debug { xxx }
+# logger.fDebug { xxx }
 """
-
 import os
 import re
 import sys
