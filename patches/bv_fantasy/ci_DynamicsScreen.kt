@@ -126,12 +126,11 @@ fun DynamicsScreen(
             LazyVerticalGrid(
                 modifier = modifier
                     .fillMaxSize()
-                    //#-s2.onFocusChanged{
-                    //#-s2    if (!it.isFocused) {
-                    //#-s2        currentFocusedIndex = -1
-                    //#-s2    }
-                    //#-s2}
-                    .onFocusChanged {} //#+s2 s2+s1未起效
+                    .onFocusChanged{
+                        if (!it.isFocused) {
+                            currentFocusedIndex = -1
+                        }
+                    }
                     .onPreviewKeyEvent {
                         if(it.type == KeyEventType.KeyUp && it.key == Key.Menu) {
                             context.startActivity(Intent(context, FollowActivity::class.java))
@@ -163,8 +162,7 @@ fun DynamicsScreen(
                         },
                         onClick = { onClickVideo(item) },
                         onLongClick = {onLongClickVideo(item) },
-                        //#- s1 onFocus = { currentFocusedIndex = index }
-                        onFocus = {} //#+ s1 s1未起效
+                        onFocus = { currentFocusedIndex = index }
                     )
                 }
 
