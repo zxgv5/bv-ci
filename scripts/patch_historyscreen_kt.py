@@ -103,8 +103,7 @@ import kotlinx.coroutines.launch
             if (lastVisibleItem != null) {
                 val lastIndex = lastVisibleItem.index
                 if (lastIndex >= historyViewModel.histories.size - 24 && 
-                    !historyViewModel.noMore && 
-                    !historyViewModel.loading) {
+                    !historyViewModel.noMore) {
                     historyViewModel.update()
                 }
             }
