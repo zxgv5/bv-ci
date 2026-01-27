@@ -28,7 +28,7 @@ sed -i 's/<string[[:space:]]*name="app_name"[[:space:]]*>.*BV R8 Test.*<\/string
 LEONWU85_BV_CONTROLLERVIDEOINFO_KT="$LEONWU85_BV_SOURCE_ROOT/player/tv/src/main/kotlin/dev/aaa1115910/bv/player/tv/controller/ControllerVideoInfo.kt"
 # 使用捕获组保留原缩进
 # sed -i -e 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = focusRequesters["danmaku"] ?: FocusRequester()/' \
-sed -i -e 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = if (showDanmaku) (focusRequesters["danmaku"] ?: FocusRequester()) else (firstVisibleButtonId?.let { focusRequesters[it] } ?: FocusRequester())/' \
+sed -i -e 's/^\([[:space:]]*\)down = focusRequesters\[if (showNextVideoBtn) "nextVideo" else "speed"\] ?: FocusRequester()/\1down = if (showDanmaku) (focusRequesters["danmaku"] ?: FocusRequester()) else (focusRequesters[if (showNextVideoBtn) "nextVideo" else "speed"] ?: FocusRequester())/' \
        -e 's/^\([[:space:]]*\)step: Float = 0\.25f,/\1step: Float = 0.2f,/' \
        -e 's/^\([[:space:]]*\)min: Float = 0\.25f,/\1min: Float = 0.2f,/' \
        -e 's/^\([[:space:]]*\)max: Float = 3f,/\1max: Float = 5f,/' "$LEONWU85_BV_CONTROLLERVIDEOINFO_KT"
