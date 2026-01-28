@@ -9,9 +9,6 @@ on:
         description: '分支'
         required: true
         default: 'feature-customisation-0001'
-        options:
-          - feature-customisation-0001
-          - feature-player-vlc
 
 env:
   JDK_VERSION: '21'
