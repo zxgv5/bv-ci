@@ -3,6 +3,15 @@ name: build-apk-bv-leonwu85
 on:
   workflow_dispatch:
   workflow_call:
+    inputs:
+      repo_branch:
+        type: choice
+        description: '分支'
+        required: true
+        default: 'feature-customisation-0001'
+        options:
+          - feature-customisation-0001
+          - feature-player-vlc
 
 env:
   JDK_VERSION: '21'
@@ -32,7 +41,8 @@ jobs:
         uses: actions/checkout@main
         with:
           repository: leonwu85/bv
-          ref: feature-customisation-0001
+          # ref: feature-customisation-0001
+          ref: ${{ inputs.repo_branch }}
           path: leonwu85-bv-source
           fetch-depth: 0
 
