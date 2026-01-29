@@ -172,8 +172,8 @@ jobs:
           # 使用apksigner对APK签名
           apksigner sign \
             --ks "${{ github.workspace }}/target/x/release/android/gradle/app/release-key.p12" \
-            --ks-pass "pass:${{ env.KEYSTORE_PASSWORD }}" \
-            --ks-key-alias "${{ env.KEY_ALIAS }}" \
+            --ks-pass "pass:${{ env.ANDROID_KEYSTORE_PASSWORD }}" \
+            --ks-key-alias "${{ env.ANDROID_KEY_ALIAS }}" \
             --ks-type PKCS12 \
             --out "${{ github.workspace }}/dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
             "${{ github.workspace }}/target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
