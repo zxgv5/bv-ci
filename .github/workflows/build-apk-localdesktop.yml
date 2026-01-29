@@ -187,14 +187,14 @@ jobs:
           mkdir -p "${{ github.workspace }}/dist"
           # 使用apksigner对APK签名
           apksigner sign \
-            --ks "${{ github.workspace }}/target/x/release/android/gradle/app/release-key.p12" \
+            --ks "./target/x/release/android/gradle/app/release-key.p12" \
             --ks-pass "pass:${{ env.ANDROID_KEYSTORE_PASSWORD }}" \
             --ks-key-alias "${{ env.ANDROID_KEY_ALIAS }}" \
             --ks-type PKCS12 \
-            --out "${{ github.workspace }}/dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
-            "${{ github.workspace }}/localdesktop_source/target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
+            --out "../dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
+            "$./target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
           # 验证签名
-          apksigner verify --verbose "${{ github.workspace }}/dist/localdesktop-${{ env.BUILD_DATE }}.apk"
+          apksigner verify --verbose "../dist/localdesktop-${{ env.BUILD_DATE }}.apk"
  
       # - name: Build AAB
       #   run: x build --release --platform=android --arch=arm64 --format=aab
