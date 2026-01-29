@@ -191,7 +191,7 @@ jobs:
             --ks-key-alias "${{ env.ANDROID_KEY_ALIAS }}" \
             --ks-type PKCS12 \
             --out "./dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
-            "$./target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
+            "./target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
           # 验证签名
           apksigner verify --verbose "./dist/localdesktop-${{ env.BUILD_DATE }}.apk"
  
