@@ -160,6 +160,20 @@ jobs:
       # - name: Build apk
       #   run: x build --release --platform=android --arch=arm64 --format=apk
 
+      - name: Find generated apk files
+        working-directory: ${{ github.workspace }}/localdesktop_source
+        run: |
+          echo "=== Searching for APK files ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          echo "=== Checking xbuild output structure ==="
+          find target/x -type f -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in target/x"
+          echo "=== Checking gradle output ==="
+          find target/x/release/android/gradle -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in gradle output"
+          echo "=== Checking alternative paths ==="
+          # 检查可能的其他路径
+          find . -path "*/build/outputs/apk/*" -name "*.apk" 2>/dev/null | head -10
+          find . -path "*/build/outputs/bundle/*" -name "*.aab" 2>/dev/null | head -10
+
       - name: Sign the apk (pkcs12)
         run: |
           # 设置Android build-tools路径
