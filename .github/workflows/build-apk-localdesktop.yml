@@ -124,8 +124,41 @@ jobs:
             cargo install xbuild
           fi
 
+      - name: Ensure xbuild installed
+        run: |
+          # 确保安装了 xbuild
+          if ! command -v x &> /dev/null; then
+            echo "xbuild not found, installing from crates.io"
+            cargo install xbuild
+          else
+            echo "xbuild already installed"
+          fi
+
+      - name: Check project structure
+        run: |
+          echo "=== Checking project structure ==="
+          echo "localdesktop_source directory contents:"
+          ls -la "${{ github.workspace }}/localdesktop_source/"
+          echo "Checking for Cargo.toml..."
+          if [ -f "${{ github.workspace }}/localdesktop_source/Cargo.toml" ]; then
+            echo "Found Cargo.toml in localdesktop_source"
+          else
+            echo "Cargo.toml not found in localdesktop_source"
+            echo "Searching recursively..."
+            find "${{ github.workspace }}/localdesktop_source" -name "Cargo.toml" -type f | head -5
+          fi
+
       - name: Build apk
-        run: x build --release --platform=android --arch=arm64 --format=apk
+        working-directory: ${{ github.workspace }}/localdesktop_source
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Running x build..."
+          x build --release --platform=android --arch=arm64 --format=apk
+
+      # - name: Build apk
+      #   run: x build --release --platform=android --arch=arm64 --format=apk
  
       - name: Rename apk
         run: |
