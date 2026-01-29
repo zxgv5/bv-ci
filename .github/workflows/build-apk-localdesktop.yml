@@ -160,24 +160,26 @@ jobs:
       # - name: Build apk
       #   run: x build --release --platform=android --arch=arm64 --format=apk
 
-      - name: Find generated apk files
-        working-directory: ${{ github.workspace }}/localdesktop_source
+      - name: Sign the apk (pkcs12)
+        working-directory: "${{ github.workspace }}/localdesktop_source"
         run: |
-          echo "=== Searching for APK files ==="
-          find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
-          echo "=== Checking xbuild output structure ==="
-          find target/x -type f -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in target/x"
-          echo "=== Checking gradle output ==="
-          find target/x/release/android/gradle -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in gradle output"
-          echo "=== Checking alternative paths ==="
-          # 检查可能的其他路径
-          find . -path "*/build/outputs/apk/*" -name "*.apk" 2>/dev/null | head -10
-          find . -path "*/build/outputs/bundle/*" -name "*.aab" 2>/dev/null | head -10
-
-      - name: Rename apk
-        run: |
-          mkdir -p ${{ github.workspace }}/dist
-          mv target/x/release/android/gradle/app/build/outputs/apk/release/app-release.apk "${{ github.workspace }}/dist/localdesktop-${{ env.BUILD_DATE }}.apk"
+          # 设置Android build-tools路径
+          export ANDROID_HOME=/usr/local/lib/android/sdk
+          export PATH="$ANDROID_HOME/build-tools/35.0.0:$PATH"
+          # 验证apksigner可用
+          which apksigner
+          apksigner --version
+          mkdir -p "${{ github.workspace }}/dist"
+          # 使用apksigner对APK签名
+          apksigner sign \
+            --ks "./target/x/release/android/gradle/app/release-key.jks" \
+            --ks-pass "pass:${{ env.KEYSTORE_PASSWORD }}" \
+            --ks-key-alias "${{ env.KEY_ALIAS }}" \
+            --ks-type PKCS12 \
+            --out "${{ github.workspace }}/dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
+            "${{ github.workspace }}/target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
+          # 验证签名
+          apksigner verify --verbose "${{ github.workspace }}/dist/localdesktop-${{ env.BUILD_DATE }}.apk"
  
       # - name: Build AAB
       #   run: x build --release --platform=android --arch=arm64 --format=aab
