@@ -5,9 +5,10 @@ on:
  
 permissions:
   contents: write
- 
+
 env:
   CARGO_TERM_COLOR: always
+  ANDROID_KEYSTORE_PATH: 'target/x/release/android/gradle/app/release-key.p12'
   ANDROID_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
   ANDROID_KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
   ANDROID_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
@@ -51,11 +52,12 @@ jobs:
         run: echo "version=$(cargo metadata --format-version=1 --no-deps | jq -r '.packages[0].version')" >> "$GITHUB_OUTPUT"
  
       - name: Setup signing keystore
+        working-directory: ${{ github.workspace }}/localdesktop_source
         run: |
-          mkdir -p target/x/release/android/gradle/app
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > target/x/release/android/gradle/app/release-key.p12
+          mkdir -p ./target/x/release/android/gradle/app
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > "./${{ env.ANDROID_KEYSTORE_PATH }}"
           # Verify keystore
-          keytool -list -v -keystore target/x/release/android/gradle/app/release-key.p12 -storepass $ANDROID_KEYSTORE_PASSWORD
+          keytool -list -v -keystore "./${{ env.ANDROID_KEYSTORE_PATH }}" -storepass "$ANDROID_KEYSTORE_PASSWORD"
  
       - name: Update manifest.yaml to target api 35
         run: |
@@ -91,17 +93,11 @@ jobs:
           mkdir -p ~/.cache/x/
           mv Android.ndk ~/.cache/x/
  
-      # - name: Build xbuild
-      #   working-directory: patches/xbuild
-      #   run: cargo install --path xbuild
- 
       - name: Build xbuild
         run: |
           WORKSPACE_DIR="${{ github.workspace }}/localdesktop_source/patches/xbuild"
-          
           echo "Current directory: $(pwd)"
           echo "Workspace directory: $WORKSPACE_DIR"
-          
           # 检查目录结构
           if [ -d "$WORKSPACE_DIR/xbuild" ] && [ -f "$WORKSPACE_DIR/xbuild/Cargo.toml" ]; then
             echo "Found xbuild package in subdirectory"
@@ -112,14 +108,12 @@ jobs:
           else
             echo "Trying to build from workspace..."
             cd "$WORKSPACE_DIR"
-            
             # 尝试不同的方法
             echo "Method 1: cargo install (without --path)"
             if cargo install 2>/dev/null; then
               echo "Success with method 1"
               exit 0
             fi
-            
             echo "Method 2: cargo install from crates.io"
             cargo install xbuild
           fi
@@ -166,16 +160,16 @@ jobs:
           echo "=== Searching for APK files ==="
           find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
           echo "=== Checking xbuild output structure ==="
-          find target/x -type f -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in target/x"
+          find ./target/x -type f -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in ./target/x"
           echo "=== Checking gradle output ==="
-          find target/x/release/android/gradle -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in gradle output"
+          find ./target/x/release/android/gradle -name "*.apk" 2>/dev/null | head -10 || echo "No APK files in gradle output"
           echo "=== Checking alternative paths ==="
           # 检查可能的其他路径
           find . -path "*/build/outputs/apk/*" -name "*.apk" 2>/dev/null | head -10
           find . -path "*/build/outputs/bundle/*" -name "*.aab" 2>/dev/null | head -10
  
       - name: Sign the apk (pkcs12)
-        working-directory: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}/localdesktop_source
         run: |
           # 设置Android build-tools路径
           export ANDROID_HOME=/usr/local/lib/android/sdk
@@ -183,42 +177,22 @@ jobs:
           # 验证apksigner可用
           which apksigner
           apksigner --version
-          mkdir -p "${{ github.workspace }}/dist"
+          mkdir -p "../dist"
           # 使用apksigner对APK签名
           apksigner sign \
-            --ks "./target/x/release/android/gradle/app/release-key.p12" \
+            --ks "./${{ env.ANDROID_KEYSTORE_PATH }}" \
             --ks-pass "pass:${{ env.ANDROID_KEYSTORE_PASSWORD }}" \
             --ks-key-alias "${{ env.ANDROID_KEY_ALIAS }}" \
             --ks-type PKCS12 \
-            --out "./dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
+            --out "../dist/localdesktop-${{ env.BUILD_DATE }}.apk" \
             "./target/x/release/android/gradle/app/build/outputs/apk/release/app-release-unsigned.apk"
           # 验证签名
-          apksigner verify --verbose "./dist/localdesktop-${{ env.BUILD_DATE }}.apk"
- 
-      # - name: Build AAB
-      #   run: x build --release --platform=android --arch=arm64 --format=aab
- 
-      # - name: Rename AAB
-      #   run: |
-      #     mv target/x/release/android/gradle/app/build/outputs/bundle/debug/app-debug.aab target/x/localdesktop-${{ steps.extract_version.outputs.version }}-debug.aab
-      #     mv target/x/release/android/gradle/app/build/outputs/bundle/release/app-release.aab target/x/localdesktop-${{ steps.extract_version.outputs.version }}.aab
-      # - name: Create GitHub Release
-      #   if: github.ref_type == 'tag'
-      #   uses: softprops/action-gh-release@main
-      #   with:
-      #     token: ${{ secrets.PAT }}
-      #     name: Local Desktop v${{ steps.extract_version.outputs.version }}
-      #     tag_name: v${{ steps.extract_version.outputs.version }}
-      #     files: |
-      #       target/x/localdesktop-${{ steps.extract_version.outputs.version }}.apk
-      #       target/x/localdesktop-${{ steps.extract_version.outputs.version }}-debug.apk
-      #       target/x/localdesktop-${{ steps.extract_version.outputs.version }}.aab
-      #       target/x/localdesktop-${{ steps.extract_version.outputs.version }}-debug.aab
+          apksigner verify --verbose "../dist/localdesktop-${{ env.BUILD_DATE }}.apk"
 
       - name: Erase keystore, encrypt package and create release
         uses: ./ci_source/.github/actions/erase_aes256pac_release/
         with:
-          P12_KEYSTORE_PATH: "./target/x/release/android/gradle/app/release-key.p12"
+          P12_KEYSTORE_PATH: "./localdesktop_source/${{ env.ANDROID_KEYSTORE_PATH }}"
           ZIP_AES256_PWD: ${{ secrets.ZIP_AES256_PWD }}
           BUILD_ARTIFACT_PATH: "$./dist/localdesktop-${{ env.BUILD_DATE }}.apk"
           RELEASE_TAG_NAME: "${{ env.BUILD_DATE }}-localdesktop"
