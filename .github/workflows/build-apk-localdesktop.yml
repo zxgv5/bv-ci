@@ -55,7 +55,7 @@ jobs:
           mkdir -p target/x/release/android/gradle/app
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > target/x/release/android/gradle/app/release-key.p12
           # Verify keystore
-          keytool -list -v -keystore target/x/release/android/gradle/app/release-key.jks -storepass $ANDROID_KEYSTORE_PASSWORD
+          keytool -list -v -keystore target/x/release/android/gradle/app/release-key.p12 -storepass $ANDROID_KEYSTORE_PASSWORD
  
       - name: Update manifest.yaml to target api 35
         run: |
@@ -161,7 +161,6 @@ jobs:
       #   run: x build --release --platform=android --arch=arm64 --format=apk
 
       - name: Sign the apk (pkcs12)
-        working-directory: "${{ github.workspace }}/localdesktop_source"
         run: |
           # 设置Android build-tools路径
           export ANDROID_HOME=/usr/local/lib/android/sdk
