@@ -22,8 +22,8 @@ jobs:
         uses: actions/checkout@main
         with:
           repository: WirelessAlien/ZipXtract
-          # ref: master
-          ref: v7.1
+          ref: master
+          # ref: v7.1
           path: zipxtract_source
           fetch-depth: 0
 
@@ -45,39 +45,11 @@ jobs:
           echo "BUILD_DATE=$(TZ=UTC-8 date +"%y.%m.%d-%H.%M.%S")" >> $GITHUB_ENV
           echo "RELEASE_TYPE=release" >> $GITHUB_ENV
           echo "BUILD_FLAVOR=ps" >> $GITHUB_ENV
-          
           # Get version info from build.gradle
           VERSION_CODE=$(grep 'versionCode' app/build.gradle | head -1 | awk '{print $2}')
           VERSION_NAME=$(grep 'versionName' app/build.gradle | head -1 | awk -F\" '{print $2}')
           echo "VERSION_CODE=$VERSION_CODE" >> $GITHUB_ENV
           echo "VERSION_NAME=$VERSION_NAME" >> $GITHUB_ENV
-
-      - name: Setup keystore for signing
-        working-directory: ./zipxtract_source
-        run: |
-          cat > keystore.properties << EOF
-          storeFile=${{ env.KEYSTORE_PATH }}
-          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          keyAlias=${{ secrets.KEY_ALIAS }}
-          keyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
-          # Decode and save keystore file
-          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ env.KEYSTORE_PATH }}
-
-      - name: Configure signing properties
-        working-directory: ./zipxtract_source
-        run: |
-          # 确保gradle.properties末尾有换行，防止内容粘连
-          [ -f gradle.properties ] || touch gradle.properties
-          echo "" >> gradle.properties
-          # 追加签名配置
-          cat >> gradle.properties << EOF
-          releaseSigningEnabled=true
-          releaseStoreFile=${{ env.KEYSTORE_PATH }}
-          releaseStorePassword=${{ secrets.KEYSTORE_PASSWORD }}
-          releaseKeyAlias=${{ secrets.KEY_ALIAS }}
-          releaseKeyPassword=${{ secrets.KEY_PASSWORD }}
-          EOF
 
       - name: Build ps release
         working-directory: ./zipxtract_source
@@ -85,8 +57,7 @@ jobs:
           echo "Building PS release..."
           chmod +x ./gradlew
           ./gradlew clean
-          ./gradlew bundlePsRelease
-          # ./gradlew assemblePsRelease
+          ./gradlew assemblePsRelease
 
       - name: Find release apks
         working-directory: ./zipxtract_source
