@@ -1,4 +1,4 @@
-name: build-apk-imagetoolbox-market
+name: build-apk-imagetoolbox
 
 on:
   workflow_dispatch:
@@ -68,7 +68,7 @@ jobs:
           echo "Created signing.properties with signing configuration"
           echo "Store file path: $KEYSTORE_PATH"
 
-      - name: Build market release apk
+      - name: Build release apk
         id: build
         working-directory: ./imagetoolbox_source
         env:
