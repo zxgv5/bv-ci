@@ -12,7 +12,8 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest-8-cores  # 使用更多核心以加速构建
+    # runs-on: ubuntu-latest-8-cores  # 使用更多核心以加速构建
+    runs-on: ubuntu-latest
     steps:
       - name: Clean runner environment
         run: |
