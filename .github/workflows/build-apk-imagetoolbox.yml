@@ -74,12 +74,11 @@ jobs:
                 --ks "./keystore.p12" \
                 --ks-key-alias ${{ secrets.ALIAS }} \
                 --ks-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
-                --key-pass pass:${{ secrets.KEYSTORE_PASSWORD }} \
                 --ks-type PKCS12 \
                 --out "./imagetoolbox-${{ env.BUILD_DATE }}.apk" \
                 "$apk"
             else
-              echo "Skipping apk (not arm64-v8a or contains foss): $(basename "$apk")"
+              echo "skipping apk (not arm64-v8a or contains foss): $(basename "$apk")"
             fi
           done
 
