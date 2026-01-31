@@ -57,12 +57,33 @@ jobs:
         run: |
           echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 --decode > ${{ env.KEYSTORE_PATH }}
 
+      # - name: Patch source files
+      #   working-directory: ./zipxtract_source
+      #   run: |
+      #     sed -i '/^package /a\'$'\n'"import java.nio.file.Files"'\n'"import java.nio.file.attribute.BasicFileAttributes"'\n' "${{ env.PATCH_FILE_PATH }}"
+      #     # 删除冲突的androidx.core.content.Files导入
+      #     sed -i '/import androidx.core.content.Files/d' "${{ env.PATCH_FILE_PATH }}"
+
       - name: Patch source files
         working-directory: ./zipxtract_source
         run: |
-          sed -i '/^package /a\'$'\n'"import java.nio.file.Files"'\n'"import java.nio.file.attribute.BasicFileAttributes"'\n' "${{ env.PATCH_FILE_PATH }}"
-          # 删除冲突的androidx.core.content.Files导入
-          sed -i '/import androidx.core.content.Files/d' "${{ env.PATCH_FILE_PATH }}"
+          # 第一步：插入带别名的import（替换原有插入命令）
+          sed -i '/^package /a\'$'\n'"import java.nio.file.Files as NioFiles"'\n'"import java.nio.file.attribute.BasicFileAttributes"'\n' "${{ env.PATCH_FILE_PATH }}"
+          # 第二步：修改代码中调用Files的地方，改为NioFiles（关键）
+          # 匹配Files.readAttributes并替换为NioFiles.readAttributes
+          sed -i 's/Files\.readAttributes/NioFiles.readAttributes/g' "${{ env.PATCH_FILE_PATH }}"
+          # 可选：验证替换结果
+          echo "===== Verify NioFiles replacement ====="
+          grep -n "NioFiles.readAttributes" "${{ env.PATCH_FILE_PATH }}"
+
+      - name: Verify import fix
+        working-directory: ./zipxtract_source
+        run: |
+          # 打印所有Files/NioFiles相关的import和调用
+          echo "===== Final import check ====="
+          grep -n "import.*Files\|NioFiles" "${{ env.PATCH_FILE_PATH }}"
+          echo "===== Final readAttributes check ====="
+          grep -n "readAttributes" "${{ env.PATCH_FILE_PATH }}"
 
       - name: Build ps release
         working-directory: ./zipxtract_source
